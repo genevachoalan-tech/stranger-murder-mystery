@@ -1621,10 +1621,16 @@ function startPlayer(){
   connectToHost();
 }
 
-function connectToHost(){
+function connectToHost(_attempt){
+  const attempt = _attempt || 1;
   // 通过 join_room 加入房间；ack 里携带 players 与 fullState
   socket.emit('join_room', { gameId:'stranger', roomNumber: state.roomNumber, playerId: state.playerId, nickname: state.myNickname }, function(ack){
     if(!ack || !ack.success){
+      if(attempt < 3){
+        toast('加入失败，第' + (attempt+1) + '次重试…', 2000);
+        setTimeout(function(){ connectToHost(attempt+1); }, 2000);
+        return;
+      }
       toast('加入失败：房间不存在或主持人未创建，请检查房间号', 3500);
       showHostDown(true);
       return;
