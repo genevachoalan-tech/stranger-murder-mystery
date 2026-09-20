@@ -1465,7 +1465,7 @@ function endDmRoom(){
 /* ==================== Host (DM) 端 ==================== */
 function startHost(password){
   ensureSocket();
-  socket.emit('create_room', { gameId:'stranger', password: password }, function(ack){
+  socket.emit('create_room', { gameId:'stranger', password: password, roomNumber: state.roomNumber }, function(ack){
     if(!ack || !ack.success){
       toast('密码错误或创建房间失败', 3500);
       return;
