@@ -1372,7 +1372,6 @@ function playSfxSafe(name){ try{ audio.playSfx(name); }catch(e){} }
 /* ==================== 断线重连 / Session 持久化 ==================== */
 const DM_SESSION_KEY = 'stranger_dm_session';
 const PLAYER_ROOM_KEY = 'stranger_player_room';
-let playerReconnectTimer = null;
 
 function saveDmSession(){
   if(!state.isDM) return;
@@ -1451,8 +1450,7 @@ function discardDmSession(){ clearDmSession(); $('dmRecoverModal').style.display
 function endDmRoom(){
   if(!confirm('确定要结束当前房间吗？所有玩家将被断开，房间记录将被清除。')) return;
   if(socket){ try{ socket.emit('end_room'); }catch(e){} }
-  if(socket){ try{ socket.disconnect(); }catch(e){} }
-  socket = null;
+  setTimeout(function(){ if(socket){ try{ socket.disconnect(); }catch(e){} } socket = null; }, 200);
   dmRegistered = false;
   clearDmSession();
   state.isDM = false; state.roomNumber = ''; state.players = {}; state.stageIndex = 0;
@@ -1462,12 +1460,6 @@ function endDmRoom(){
   $('dmPanel').classList.add('hidden');
   $('roomDisplay').style.display = 'none';
   toast('房间已结束');
-}
-
-// Socket.IO 自带断线重连；重连成功后由 socket.on('connect') 自动重新 join_room。
-// 保留函数名以兼容旧调用点，此处为空实现。
-function startPlayerAutoReconnect(){
-  // no-op: reconnection handled by Socket.IO
 }
 
 /* ==================== Host (DM) 端 ==================== */
