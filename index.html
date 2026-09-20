@@ -1,0 +1,2581 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>陌生人 · 剧本杀</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%230a0a0a'/><circle cx='50' cy='50' r='40' fill='none' stroke='%23C41E3A' stroke-width='4'/><text x='50' y='62' font-size='40' text-anchor='middle' fill='%23C41E3A' font-family='serif' font-weight='bold'>陌</text></svg>">
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+/* ============ 基础与变量 ============ */
+:root{
+  --bg:#0a0a0a;
+  --bg2:#141010;
+  --panel:rgba(20,14,14,.82);
+  --panel-solid:#1a1414;
+  --red:#C41E3A;
+  --dark-red:#8B0000;
+  --blood:#a3122e;
+  --gold:#d4af37;
+  --text:#e8ddd0;
+  --text-dim:#9a8d82;
+  --line:#3a2424;
+  --green:#3ddc84;
+  --grey:#555;
+  --wood-1:#3b2416;
+  --wood-2:#241307;
+  --wood-3:#4a2e1a;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",system-ui,sans-serif;
+  min-width:1024px;
+  overflow:hidden;
+}
+button{font-family:inherit;cursor:pointer;}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-track{background:#0d0808;}
+::-webkit-scrollbar-thumb{background:#4a2020;border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:#6a2a2a;}
+
+/* ============ 通用按钮 ============ */
+.btn{
+  background:linear-gradient(180deg,#a3122e,#7a0d20);
+  color:#fff;border:1px solid #5a0a18;
+  padding:10px 22px;border-radius:6px;font-size:15px;
+  letter-spacing:1px;transition:all .2s;
+  box-shadow:0 2px 8px rgba(196,30,58,.3);
+}
+.btn:hover{filter:brightness(1.2);box-shadow:0 2px 14px rgba(196,30,58,.5);}
+.btn:active{transform:translateY(1px);}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text-dim);box-shadow:none;}
+.btn.ghost:hover{border-color:var(--red);color:var(--text);}
+.btn.gold{background:linear-gradient(180deg,#e6c35c,#b8912f);color:#2a1c00;border-color:#8a6a1f;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn.sm{padding:6px 14px;font-size:13px;}
+
+/* ============ 首屏：入口 ============ */
+#entryScreen{
+  position:fixed;inset:0;z-index:100;
+  background:
+    radial-gradient(ellipse at 50% 30%,rgba(139,0,0,.25),transparent 60%),
+    linear-gradient(180deg,#0a0505,#000);
+  display:flex;align-items:center;justify-content:center;
+}
+.entry-box{
+  width:520px;max-width:92%;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:40px 44px;
+  backdrop-filter:blur(10px);
+  box-shadow:0 20px 60px rgba(0,0,0,.7);
+}
+.game-title{
+  text-align:center;font-size:54px;font-weight:900;letter-spacing:14px;
+  color:#fff;
+  text-shadow:0 0 24px rgba(196,30,58,.8),0 0 4px rgba(255,255,255,.3);
+  margin-bottom:6px;
+}
+.game-sub{text-align:center;color:var(--gold);letter-spacing:6px;font-size:14px;margin-bottom:6px;}
+.game-tag{text-align:center;color:var(--text-dim);font-size:13px;margin-bottom:30px;}
+.role-tabs{display:flex;gap:10px;margin-bottom:24px;}
+.role-tab{
+  flex:1;text-align:center;padding:12px;border:1px solid var(--line);
+  border-radius:8px;cursor:pointer;color:var(--text-dim);transition:all .2s;
+  background:rgba(0,0,0,.3);
+}
+.role-tab.active{border-color:var(--red);color:#fff;background:rgba(196,30,58,.15);}
+.role-tab .rt-big{font-size:18px;font-weight:bold;display:block;}
+.role-tab .rt-small{font-size:12px;opacity:.7;}
+.form-row{margin-bottom:16px;}
+.form-row label{display:block;font-size:13px;color:var(--text-dim);margin-bottom:6px;letter-spacing:1px;}
+.form-row input{
+  width:100%;padding:11px 14px;background:#0d0808;border:1px solid var(--line);
+  border-radius:6px;color:var(--text);font-size:16px;outline:none;
+}
+.form-row input:focus{border-color:var(--red);}
+.entry-box .btn{width:100%;margin-top:8px;}
+.entry-note{margin-top:16px;font-size:12px;color:var(--text-dim);line-height:1.7;text-align:center;}
+#roomDisplay{
+  display:none;text-align:center;margin:14px 0;padding:16px;
+  background:rgba(196,30,58,.1);border:1px dashed var(--red);border-radius:8px;
+}
+#roomDisplay .rn{font-size:40px;letter-spacing:10px;color:var(--gold);font-weight:bold;}
+#roomDisplay .rt{font-size:13px;color:var(--text-dim);margin-top:6px;}
+
+/* ============ 游戏主界面 ============ */
+#gameScreen{position:fixed;inset:0;display:none;}
+#sceneBg{
+  position:absolute;inset:0;background-size:cover;background-position:center;
+  opacity:.22;filter:grayscale(.3) brightness(.6);z-index:0;
+  transition:opacity 1s;
+}
+#sceneBg::after{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(ellipse at center,transparent 30%,rgba(0,0,0,.85) 100%);
+}
+
+/* 顶部阶段条 */
+#stageBar{
+  position:absolute;top:0;left:0;right:0;height:52px;z-index:20;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;
+  background:linear-gradient(180deg,rgba(10,5,5,.95),rgba(10,5,5,.7) 70%,transparent);
+}
+#stageBar .sb-title{font-size:17px;font-weight:bold;letter-spacing:3px;color:#fff;}
+#stageBar .sb-title em{color:var(--red);font-style:normal;}
+#stageBar .sb-meta{font-size:12px;color:var(--text-dim);display:flex;gap:18px;align-items:center;}
+
+/* 中央内容面板 */
+#contentPanel{
+  position:absolute;top:62px;left:50%;transform:translateX(-50%);
+  width:min(860px,60vw);
+  z-index:15;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  backdrop-filter:blur(12px);
+  box-shadow:0 10px 40px rgba(0,0,0,.6);
+  transition:all .3s ease;
+  overflow:hidden;
+}
+#cpHeader{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 18px;cursor:pointer;user-select:none;
+  border-bottom:1px solid var(--line);
+  background:rgba(0,0,0,.25);
+}
+#cpHeader:hover{background:rgba(196,30,58,.1);}
+#cpTitle{font-size:13px;color:var(--gold);font-weight:bold;letter-spacing:1px;}
+#cpToggle{color:var(--text-dim);font-size:14px;transition:transform .3s;}
+#cpBody{
+  max-height:calc(100vh - 420px);overflow-y:auto;
+  padding:22px 28px;
+}
+#cpBody::-webkit-scrollbar{width:6px;}
+#cpBody::-webkit-scrollbar-thumb{background:#333;border-radius:3px;}
+/* 折叠状态 */
+#contentPanel.collapsed{
+  width:auto;min-width:280px;
+  top:62px;
+}
+#contentPanel.collapsed #cpBody{display:none;}
+#contentPanel.collapsed #cpToggle{transform:rotate(-90deg);}
+#contentPanel.collapsed #cpHeader{border-bottom:none;}
+.cp-empty{color:var(--text-dim);text-align:center;padding:40px;font-size:14px;}
+
+/* ============ 圆桌 ============ */
+#tableArea{
+  position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+  width:900px;height:420px;z-index:10;
+}
+#roundTable{
+  position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+  width:440px;height:440px;border-radius:50%;
+  background:
+    radial-gradient(circle at 50% 40%,var(--wood-3),var(--wood-1) 55%,var(--wood-2) 100%);
+  box-shadow:
+    0 30px 60px rgba(0,0,0,.8),
+    inset 0 0 60px rgba(0,0,0,.6),
+    inset 0 2px 8px rgba(255,255,255,.08);
+}
+#roundTable::before{
+  content:"";position:absolute;inset:18px;border-radius:50%;
+  border:1px solid rgba(0,0,0,.5);
+  box-shadow:inset 0 0 30px rgba(0,0,0,.5);
+}
+#tableCenter{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  text-align:center;pointer-events:none;
+}
+#tableCenter .tc-stage{
+  font-size:18px;font-weight:bold;color:var(--gold);letter-spacing:2px;
+  text-shadow:0 0 10px rgba(212,175,55,.4);
+}
+#tableCenter .tc-sub{font-size:12px;color:var(--text-dim);margin-top:6px;}
+
+/* 座位 */
+.seat{
+  position:absolute;width:130px;text-align:center;z-index:12;
+  transition:opacity .4s;
+}
+.seat .avatar-ring{
+  width:96px;height:96px;margin:0 auto;border-radius:50%;
+  padding:4px;background:#1a1414;position:relative;
+  border:2px solid var(--line);
+  transition:all .3s;
+}
+.seat.dm .avatar-ring{border-color:var(--gold);box-shadow:0 0 20px rgba(212,175,55,.6);}
+.seat .avatar-ring img{
+  width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;
+}
+.seat .avatar-ring .empty-av{
+  width:100%;height:100%;border-radius:50%;
+  background:repeating-linear-gradient(45deg,#1a1414,#1a1414 8px,#221818 8px,#221818 16px);
+  display:flex;align-items:center;justify-content:center;color:#555;font-size:11px;
+}
+.seat .status-dot{
+  position:absolute;bottom:6px;right:6px;width:16px;height:16px;border-radius:50%;
+  background:var(--grey);border:2px solid #1a1414;
+}
+.seat.online .status-dot{background:var(--green);box-shadow:0 0 8px var(--green);animation:breathe 2s infinite;}
+@keyframes breathe{0%,100%{box-shadow:0 0 4px var(--green);}50%{box-shadow:0 0 14px var(--green);}}
+.seat .name-tag{margin-top:8px;font-size:14px;font-weight:bold;color:#fff;}
+.seat .code-tag{font-size:11px;color:var(--text-dim);margin-top:2px;}
+.seat .wait-tag{font-size:11px;color:#666;margin-top:2px;font-style:italic;}
+.seat.dm .dm-badge{
+  position:absolute;top:-6px;left:50%;transform:translateX(-50%);
+  background:var(--gold);color:#2a1c00;font-size:10px;font-weight:bold;
+  padding:2px 8px;border-radius:8px;white-space:nowrap;
+}
+.seat:hover .avatar-ring{transform:scale(1.08);border-color:var(--red);}
+
+/* 座位位置 */
+#seat-dm{top:0;left:50%;transform:translateX(-50%);}
+#seat-tl{top:40px;left:30px;}
+#seat-tr{top:40px;right:30px;}
+#seat-bl{bottom:30px;left:80px;}
+#seat-br{bottom:30px;right:80px;}
+
+/* ============ DM 控制面板 ============ */
+#dmPanel{
+  position:absolute;top:60px;right:14px;width:300px;z-index:40;
+  background:var(--panel);border:1px solid var(--gold);border-radius:10px;
+  backdrop-filter:blur(10px);overflow:hidden;transition:all .3s;
+}
+#dmPanel.collapsed .dm-body{display:none;}
+#dmPanel .dm-head{
+  padding:10px 14px;background:linear-gradient(90deg,rgba(212,175,55,.2),transparent);
+  display:flex;justify-content:space-between;align-items:center;cursor:pointer;
+  border-bottom:1px solid var(--line);
+}
+#dmPanel .dm-head .dm-title{color:var(--gold);font-weight:bold;font-size:14px;letter-spacing:2px;}
+#dmPanel .dm-body{padding:12px 14px;max-height:calc(100vh - 130px);overflow-y:auto;}
+.dm-sec{margin-bottom:14px;}
+.dm-sec h4{font-size:12px;color:var(--text-dim);letter-spacing:2px;margin-bottom:8px;border-bottom:1px solid var(--line);padding-bottom:4px;}
+.dm-stage-nav{display:flex;gap:6px;}
+.dm-stage-nav .btn{flex:1;padding:8px;font-size:13px;}
+#stageSelect{width:100%;padding:8px;background:#0d0808;border:1px solid var(--line);color:var(--text);border-radius:5px;margin-top:6px;}
+.dm-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}
+.dm-row label{font-size:12px;color:var(--text-dim);}
+.bgm-track-list{font-size:12px;max-height:120px;overflow-y:auto;}
+.bgm-track-list div{padding:4px 6px;border-radius:4px;cursor:pointer;color:var(--text-dim);}
+.bgm-track-list div.cur{background:rgba(196,30,58,.25);color:#fff;}
+.bgm-track-list div:hover{background:rgba(196,30,58,.12);}
+.player-item{
+  display:flex;align-items:center;gap:8px;padding:6px;background:rgba(0,0,0,.3);
+  border-radius:6px;margin-bottom:5px;font-size:12px;
+}
+.player-item img{width:28px;height:28px;border-radius:50%;}
+.player-item .pi-info{flex:1;}
+.player-item .pi-name{color:#fff;}
+.player-item .pi-role{color:var(--text-dim);font-size:10px;}
+.player-item button{padding:2px 8px;font-size:11px;}
+
+/* ============ 音量控制（角落） ============ */
+#volumeBar{
+  position:absolute;bottom:14px;left:14px;z-index:30;
+  display:flex;align-items:center;gap:8px;
+  background:var(--panel);padding:8px 14px;border-radius:20px;border:1px solid var(--line);
+  backdrop-filter:blur(8px);
+}
+#volumeBar .vol-ico{color:var(--text-dim);font-size:16px;}
+#volumeSlider{width:110px;accent-color:var(--red);cursor:pointer;}
+#volLabel{font-size:12px;color:var(--text-dim);width:34px;}
+
+/* ============ 聊天 ============ */
+#chatBox{
+  position:absolute;bottom:14px;right:14px;width:260px;z-index:30;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  backdrop-filter:blur(8px);overflow:hidden;display:flex;flex-direction:column;
+}
+#chatBox.collapsed .chat-body,#chatBox.collapsed .chat-input-wrap{display:none;}
+#chatBox .chat-head{padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;color:var(--gold);cursor:pointer;display:flex;justify-content:space-between;}
+#chatMsgs{height:150px;overflow-y:auto;padding:8px 12px;font-size:12px;}
+.chat-msg{margin-bottom:6px;line-height:1.5;}
+.chat-msg .cm-name{color:var(--gold);font-weight:bold;}
+.chat-msg .cm-text{color:var(--text);}
+.chat-input-wrap{display:flex;gap:6px;padding:8px;border-top:1px solid var(--line);}
+.chat-input-wrap input{flex:1;background:#0d0808;border:1px solid var(--line);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;outline:none;}
+
+/* ============ 线索卡 ============ */
+.clue-round-title{font-size:16px;color:var(--gold);margin:10px 0 14px;letter-spacing:2px;}
+.clue-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;}
+.clue-card{
+  background:linear-gradient(160deg,#1f1414,#140c0c);
+  border:1px solid var(--line);border-left:3px solid var(--red);
+  border-radius:6px;padding:12px;cursor:pointer;transition:all .2s;
+}
+.clue-card:hover{border-color:var(--red);transform:translateY(-2px);box-shadow:0 4px 12px rgba(196,30,58,.2);}
+.clue-card .cc-num{font-size:11px;color:var(--red);letter-spacing:1px;}
+.clue-card .cc-title{font-size:14px;font-weight:bold;color:#fff;margin-top:4px;line-height:1.3;}
+.clue-detail{
+  margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);
+  font-size:13px;color:var(--text);line-height:1.8;display:none;
+}
+.clue-card.open .clue-detail{display:block;}
+.clue-card.open{background:linear-gradient(160deg,#2a1616,#1a0e0e);}
+
+/* 剧本阅读 */
+.script-sec{margin-bottom:22px;}
+.script-sec h3{
+  color:var(--red);font-size:18px;border-left:4px solid var(--red);
+  padding-left:10px;margin-bottom:10px;letter-spacing:2px;
+}
+.script-sec p{font-size:14px;line-height:2;margin-bottom:10px;text-indent:2em;color:#d8ccc0;}
+.reading-role-tag{
+  text-align:center;padding:10px;margin-bottom:16px;
+  background:rgba(196,30,58,.1);border:1px dashed var(--red);border-radius:6px;
+  color:var(--gold);letter-spacing:3px;
+}
+
+/* 投票 */
+.vote-options{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;}
+.vote-opt{
+  background:#1a1414;border:1px solid var(--line);border-radius:8px;padding:14px;
+  cursor:pointer;text-align:center;transition:all .2s;
+}
+.vote-opt:hover{border-color:var(--red);}
+.vote-opt.selected{border-color:var(--gold);background:rgba(212,175,55,.12);}
+.vote-opt img{width:70px;height:70px;border-radius:50%;}
+.vote-opt .vo-name{margin-top:8px;font-weight:bold;color:#fff;}
+.vote-opt .vo-code{font-size:11px;color:var(--text-dim);}
+.vote-result-bar{margin-top:14px;}
+.vote-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:13px;}
+.vote-row .vr-name{width:90px;color:var(--text-dim);}
+.vote-row .vr-bar{flex:1;height:14px;background:#0d0808;border-radius:7px;overflow:hidden;}
+.vote-row .vr-fill{height:100%;background:linear-gradient(90deg,var(--dark-red),var(--red));width:0;transition:width .6s;}
+.vote-row .vr-count{width:36px;text-align:right;color:var(--gold);}
+
+/* 引导问题 */
+.guide-q{
+  background:rgba(0,0,0,.3);border-left:3px solid var(--gold);
+  padding:10px 14px;margin-bottom:8px;font-size:13px;line-height:1.7;color:#d8ccc0;
+  position:relative;
+}
+.guide-q b{color:var(--gold);}
+.guide-q.published{border-left-color:var(--gold);background:rgba(212,175,55,.06);}
+.guide-q.unpublished{border-left-color:#555;background:rgba(0,0,0,.15);opacity:.85;}
+.guide-q .gq-badge{
+  display:inline-block;font-size:10px;padding:1px 7px;border-radius:3px;
+  margin-right:8px;font-weight:bold;letter-spacing:1px;vertical-align:middle;
+}
+.guide-q .gq-badge:not(.locked){background:var(--gold);color:#000;}
+.guide-q .gq-badge.locked{background:#444;color:#aaa;}
+.guide-q .gq-pub-btn{
+  margin-left:10px;font-size:11px;padding:2px 10px;vertical-align:middle;
+  background:linear-gradient(135deg,var(--dark-red),var(--red));border:none;color:#fff;
+  border-radius:4px;cursor:pointer;transition:all .2s;
+}
+.guide-q .gq-pub-btn:hover{filter:brightness(1.2);}
+.guide-q-placeholder{
+  background:rgba(0,0,0,.2);border:1px dashed #444;border-radius:6px;
+  padding:14px;text-align:center;color:#777;font-size:13px;margin-bottom:10px;
+}
+
+/* 复盘真相 */
+.truth-box{
+  background:linear-gradient(160deg,rgba(196,30,58,.12),rgba(0,0,0,.3));
+  border:1px solid var(--red);border-radius:10px;padding:20px;margin-top:14px;
+}
+.truth-box h3{color:var(--red);margin-bottom:12px;letter-spacing:2px;}
+.truth-box p{font-size:14px;line-height:2;margin-bottom:10px;text-indent:2em;}
+
+/* 时间线表 */
+.tl-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;}
+.wb-input{width:100%;background:rgba(0,0,0,.3);border:1px solid #3a2a1a;border-radius:4px;color:#e0d0c0;padding:5px 8px;font-size:13px;line-height:1.5;resize:none;outline:none;font-family:inherit;box-sizing:border-box;}
+.wb-input:focus{border-color:var(--gold);background:rgba(0,0,0,.5);}
+.wb-table textarea{margin:0;}
+.tl-table th,.tl-table td{border:1px solid var(--line);padding:8px 10px;text-align:left;}
+.tl-table th{background:rgba(196,30,58,.15);color:var(--gold);}
+
+/* 线索卡片图片 */
+.clue-card{position:relative;overflow:hidden;}
+.clue-card .cc-thumb{
+  width:100%;height:120px;object-fit:cover;display:block;
+  border-radius:6px 6px 0 0;margin:-10px -14px 8px;
+  width:calc(100% + 28px);cursor:pointer;
+  transition:filter .2s;
+}
+.clue-card .cc-thumb:hover{filter:brightness(1.15);}
+.clue-card .cc-img-badge{
+  position:absolute;top:6px;right:6px;
+  background:rgba(196,30,58,.85);color:#fff;font-size:10px;
+  padding:2px 6px;border-radius:3px;letter-spacing:1px;
+  pointer-events:none;
+}
+/* DM话术左侧面板（与右侧DM控制台对称） */
+#dmScriptsPanel{
+  position:absolute;top:60px;left:14px;width:280px;z-index:40;
+  background:var(--panel);border:1px solid var(--gold);border-radius:10px;
+  backdrop-filter:blur(10px);overflow:hidden;transition:all .3s;
+}
+#dmScriptsPanel.collapsed #dspBody{display:none;}
+#dmScriptsPanel.collapsed #dspToggle{transform:rotate(-90deg);}
+#dspHeader{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;cursor:pointer;
+  background:linear-gradient(90deg,rgba(212,175,55,.2),transparent);
+  border-bottom:1px solid var(--line);
+}
+#dspHeader:hover{background:rgba(196,30,58,.15);}
+#dspTitle{font-size:14px;color:var(--gold);font-weight:bold;letter-spacing:2px;}
+#dspToggle{color:#888;font-size:14px;transition:transform .2s;}
+#dspBody{padding:12px 14px;max-height:calc(100vh - 130px);overflow-y:auto;}
+#dspBody::-webkit-scrollbar{width:5px;}
+#dspBody::-webkit-scrollbar-thumb{background:#442;border-radius:3px;}
+.dsp-expand-row{text-align:center;margin-top:6px;padding-top:6px;border-top:1px solid #2a2020;}
+.dsp-all-group{margin-bottom:10px;}
+.dsp-all-group-title{font-size:11px;color:#d4a843;margin-bottom:4px;padding:2px 6px;background:#2a1a1a;border-radius:3px;}
+
+/* DM话术 */
+.ds-item{border:1px solid #3a2a2a;border-radius:6px;margin-bottom:6px;background:#1a1414;overflow:hidden;}
+.ds-header{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;cursor:pointer;background:#221a1a;}
+.ds-header:hover{background:#2a2020;}
+.ds-cat{font-size:10px;color:#d4a843;background:#3a2a1a;padding:1px 5px;border-radius:3px;margin-right:6px;white-space:nowrap;}
+.ds-title{font-size:12px;color:#d8ccc0;flex:1;}
+.ds-toggle{color:#888;font-size:14px;transition:transform 0.2s;}
+.ds-body{display:none;padding:8px;font-size:12px;color:#c8b8a8;line-height:1.7;max-height:200px;overflow-y:auto;white-space:pre-wrap;}
+.ds-item.open .ds-body{display:block;}
+.ds-item.open .ds-toggle{transform:rotate(180deg);display:inline-block;}
+.ds-actions{display:flex;gap:6px;margin-top:8px;padding-top:6px;border-top:1px solid #333;}
+.ds-actions button{font-size:11px;padding:3px 8px;}
+/* 线索图片放大弹窗 */
+#clueImageModal{
+  position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.88);
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(6px);
+}
+#clueImageModal.hidden{display:none;}
+.cim-inner{
+  position:relative;max-width:90vw;max-height:90vh;
+  background:#111;border-radius:12px;overflow:hidden;
+  box-shadow:0 20px 80px rgba(0,0,0,.8);
+  animation:cimZoom .3s ease;
+}
+@keyframes cimZoom{from{transform:scale(.85);opacity:0;}to{transform:scale(1);opacity:1;}}
+.cim-inner img{max-width:90vw;max-height:78vh;display:block;object-fit:contain;}
+#cimCaption{
+  padding:12px 20px;color:#d8ccc0;font-size:14px;text-align:center;
+  background:rgba(0,0,0,.5);border-top:1px solid #333;
+}
+.cim-close{
+  position:absolute;top:8px;right:12px;background:rgba(0,0,0,.6);
+  border:none;color:#fff;font-size:28px;width:40px;height:40px;
+  border-radius:50%;cursor:pointer;line-height:1;transition:background .2s;
+}
+.cim-close:hover{background:var(--red);}
+
+/* 平面图弹窗 */
+#floorplanModal{
+  position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.9);
+  display:none;align-items:center;justify-content:center;
+}
+#floorplanModal img{max-width:90vw;max-height:88vh;border:2px solid var(--gold);border-radius:6px;}
+#floorplanModal .close-x{
+  position:absolute;top:20px;right:30px;color:#fff;font-size:36px;cursor:pointer;
+}
+
+/* 我的剧本弹窗 */
+#scriptModal{
+  position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.92);
+  display:none;align-items:center;justify-content:center;
+}
+#scriptModal .script-box{
+  background:linear-gradient(180deg,#1e1616,#141010);
+  border:1px solid #5a3a2a;border-radius:12px;
+  width:90vw;max-width:780px;max-height:88vh;
+  display:flex;flex-direction:column;
+  box-shadow:0 0 60px rgba(196,30,58,.3);
+}
+#scriptModal .script-header{
+  padding:18px 28px;border-bottom:1px solid #3a2a1a;
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+#scriptModal .script-title{
+  font-size:20px;color:#d4a843;font-weight:bold;
+}
+#scriptModal .script-subtitle{
+  font-size:13px;color:#8a7a6a;margin-top:4px;
+}
+#scriptModal .script-close{
+  color:#aaa;font-size:28px;cursor:pointer;line-height:1;
+  background:none;border:none;padding:4px 10px;border-radius:4px;
+}
+#scriptModal .script-close:hover{color:#fff;background:rgba(196,30,58,.3);}
+#scriptModal .script-body{
+  padding:24px 28px;overflow-y:auto;flex:1;
+  color:#c8b8a8;font-size:15px;line-height:1.9;
+}
+#scriptModal .script-body::-webkit-scrollbar{width:8px;}
+#scriptModal .script-body::-webkit-scrollbar-track{background:#1a1212;}
+#scriptModal .script-body::-webkit-scrollbar-thumb{background:#5a3a2a;border-radius:4px;}
+#scriptModal .script-section-h{
+  color:#d4a843;font-size:17px;font-weight:bold;
+  margin:24px 0 12px;padding-bottom:6px;border-bottom:1px solid #3a2a1a;
+}
+#scriptModal .script-section-h:first-child{margin-top:0;}
+#scriptModal .script-para{
+  margin-bottom:14px;text-indent:2em;text-align:justify;
+}
+
+/* toast */
+#toast{
+  position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:200;
+  background:rgba(196,30,58,.95);color:#fff;padding:10px 24px;border-radius:6px;
+  font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;
+}
+#toast.show{opacity:1;}
+
+/* 主持人断开遮罩 */
+#hostDownMask{
+  position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.85);
+  display:none;align-items:center;justify-content:center;flex-direction:column;
+}
+#hostDownMask .hdm-ico{font-size:50px;color:var(--red);margin-bottom:16px;}
+#hostDownMask .hdm-text{color:var(--gold);font-size:20px;letter-spacing:3px;}
+
+/* 阶段标题动画 */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+.fade-in{animation:fadeInUp .5s ease;}
+.hidden{display:none!important;}
+</style>
+</head>
+<body>
+<!-- ===== 入口屏 ===== -->
+<div id="entryScreen">
+  <div class="entry-box">
+    <div class="game-sub">雁北堂口袋剧本杀系列</div>
+    <div class="game-title">陌生人</div>
+    <div class="game-tag">4人硬核推理 · 一场测试局背后的命案</div>
+    <div class="role-tabs">
+      <div class="role-tab active" id="tabPlayer" onclick="pickEntryRole('player')">
+        <span class="rt-big">加入游戏</span>
+        <span class="rt-small">玩家入座</span>
+      </div>
+      <div class="role-tab" id="tabDM" onclick="pickEntryRole('dm')">
+        <span class="rt-big">创建房间</span>
+        <span class="rt-small">主持人 DM</span>
+      </div>
+    </div>
+    <div class="form-row hidden" id="passwordRow">
+      <label>DM 密码</label>
+      <input id="passwordInput" type="password" placeholder="输入主持人密码" maxlength="20">
+    </div>
+    <div class="form-row hidden" id="roomRow">
+      <label>房间号</label>
+      <input id="roomInput" placeholder="输入6位房间号" maxlength="6">
+    </div>
+    <button class="btn" id="entryBtn" onclick="doEntry()">加入房间</button>
+    <div id="roomDisplay">
+      <div class="rt">你的房间号（把它告诉玩家）</div>
+      <div class="rn" id="roomNumText">------</div>
+    </div>
+    <div class="entry-note">
+      本应用使用点对点连接，主持人创建房间后，请将6位房间号分享给其余玩家。<br>
+      建议使用桌面浏览器（宽度≥1024px）。首次进入请允许音频自动播放。
+    </div>
+  </div>
+</div>
+
+<!-- ===== 游戏主界面 ===== -->
+<div id="gameScreen">
+  <div id="sceneBg"></div>
+
+  <!-- 顶部阶段条 -->
+  <div id="stageBar">
+    <div class="sb-title">陌生人 · <em id="sbStageName">大厅</em></div>
+    <div class="sb-meta">
+      <span id="sbClock">00:00</span>
+      <span id="sbRoom">房间 ------</span>
+      <span id="sbRole">玩家</span>
+      <button class="btn ghost sm" id="topFpBtn" onclick="showFloorPlan()">查看平面图</button>
+      <button class="btn ghost sm" id="topScriptBtn" onclick="showMyScript()">我的剧本</button>
+    </div>
+  </div>
+
+  <!-- 中央内容面板 -->
+  <div id="contentPanel">
+    <div id="cpHeader" onclick="toggleContentPanel()">
+      <span id="cpTitle">等待主持人推进游戏…</span>
+      <span id="cpToggle">▾</span>
+    </div>
+    <div id="cpBody">
+      <div class="cp-empty">等待主持人推进游戏…</div>
+    </div>
+  </div>
+
+  <!-- DM话术面板（左侧，仅DM可见） -->
+  <div id="dmScriptsPanel" class="hidden">
+    <div id="dspHeader" onclick="toggleDspPanel()">
+      <span id="dspTitle">DM话术</span>
+      <span id="dspToggle">▾</span>
+    </div>
+    <div id="dspBody">
+      <div id="dspCurrent"></div>
+      <div id="dspAll" style="display:none;"></div>
+      <div class="dsp-expand-row">
+        <button class="btn ghost sm" id="dspExpandBtn" onclick="toggleDspAll()">展开全部话术</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 圆桌 -->
+  <div id="tableArea">
+    <div id="roundTable">
+      <div id="tableCenter">
+        <div class="tc-stage" id="tcStage">大厅</div>
+        <div class="tc-sub" id="tcSub">等待玩家入座</div>
+      </div>
+    </div>
+    <div class="seat dm" id="seat-dm">
+      <div class="avatar-ring">
+        <span class="dm-badge">主持人</span>
+        <img id="dmAvatar" src="https://aka.doubaocdn.com/s/ziSFKa1xQ8" alt="DM">
+        <span class="status-dot" id="dmDot"></span>
+      </div>
+      <div class="name-tag" id="dmName">苟咚溪</div>
+      <div class="code-tag">DM / 受害者</div>
+    </div>
+    <div class="seat" id="seat-tl">
+      <div class="avatar-ring">
+        <div class="empty-av" id="tlEmpty">等待加入</div>
+        <img id="tlAvatar" class="hidden" src="" alt="">
+        <span class="status-dot" id="tlDot"></span>
+      </div>
+      <div class="name-tag" id="tlName">—</div>
+      <div class="code-tag" id="tlCode">左上席</div>
+    </div>
+    <div class="seat" id="seat-tr">
+      <div class="avatar-ring">
+        <div class="empty-av" id="trEmpty">等待加入</div>
+        <img id="trAvatar" class="hidden" src="" alt="">
+        <span class="status-dot" id="trDot"></span>
+      </div>
+      <div class="name-tag" id="trName">—</div>
+      <div class="code-tag" id="trCode">右上席</div>
+    </div>
+    <div class="seat" id="seat-bl">
+      <div class="avatar-ring">
+        <div class="empty-av" id="blEmpty">等待加入</div>
+        <img id="blAvatar" class="hidden" src="" alt="">
+        <span class="status-dot" id="blDot"></span>
+      </div>
+      <div class="name-tag" id="blName">—</div>
+      <div class="code-tag" id="blCode">左下席</div>
+    </div>
+    <div class="seat" id="seat-br">
+      <div class="avatar-ring">
+        <div class="empty-av" id="brEmpty">等待加入</div>
+        <img id="brAvatar" class="hidden" src="" alt="">
+        <span class="status-dot" id="brDot"></span>
+      </div>
+      <div class="name-tag" id="brName">—</div>
+      <div class="code-tag" id="brCode">右下席</div>
+    </div>
+  </div>
+
+  <!-- DM 控制面板 -->
+  <div id="dmPanel" class="hidden">
+    <div class="dm-head" onclick="toggleDmPanel()">
+      <span class="dm-title">DM 控制台</span>
+      <span id="dmToggle">▾</span>
+    </div>
+    <div class="dm-body">
+      <div class="dm-sec">
+        <h4>阶段控制</h4>
+        <div class="dm-stage-nav">
+          <button class="btn ghost sm" onclick="dmPrevStage()">上一步</button>
+          <button class="btn sm" onclick="dmNextStage()">下一步</button>
+        </div>
+        <select id="stageSelect" onchange="dmJumpStage(this.value)"></select>
+      </div>
+      <div class="dm-sec">
+        <h4>BGM 控制</h4>
+        <div class="dm-row">
+          <button class="btn ghost sm" onclick="bgmPrev()">⏮ 上一首</button>
+          <button class="btn sm" id="dmBgmPlayBtn" onclick="dmToggleBgmPlay()">暂停</button>
+          <button class="btn ghost sm" onclick="bgmNext()">下一首 ⏭</button>
+        </div>
+        <div class="bgm-track-list" id="bgmList"></div>
+      </div>
+      <div class="dm-sec">
+        <h4>玩家管理</h4>
+        <div id="dmPlayerList"></div>
+      </div>
+      <div class="dm-sec">
+        <h4>投票结果</h4>
+        <div id="dmVoteView"><span style="color:#666;font-size:12px;">暂无投票</span></div>
+      </div>
+      <div class="dm-sec">
+        <h4>平面图控制</h4>
+        <div class="dm-row">
+          <button class="btn sm" id="dmFpBtn" onclick="dmPublishFloorPlan()">发布平面图</button>
+          <button class="btn ghost sm" onclick="showFloorPlan()">查看平面图</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">发布后玩家端才显示平面图入口</div>
+      </div>
+      <div class="dm-sec">
+        <h4>快捷</h4>
+        <div class="dm-row">
+          <button class="btn ghost sm" onclick="playSfx('suspense')">悬疑音效</button>
+          <button class="btn ghost sm" onclick="playSfx('clue')">线索揭示</button>
+        </div>
+        <div class="dm-row" style="margin-top:6px;">
+          <button class="btn ghost sm" style="color:#c44;" onclick="endDmRoom()">结束房间</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 线索图片放大弹窗 -->
+  <div id="clueImageModal" class="hidden" onclick="closeClueImage()">
+    <div class="cim-inner" onclick="event.stopPropagation()">
+      <img id="cimImg" src="" alt="线索图片">
+      <div id="cimCaption"></div>
+      <button class="cim-close" onclick="closeClueImage()">&times;</button>
+    </div>
+  </div>
+
+  <!-- 音量控制 -->
+  <div id="volumeBar">
+    <span class="vol-ico">♪</span>
+    <input type="range" id="volumeSlider" min="0" max="100" value="60" oninput="onVolume(this.value)">
+    <span id="volLabel">60</span>
+  </div>
+
+  <!-- 聊天 -->
+  <div id="chatBox">
+    <div class="chat-head" onclick="toggleChat()">
+      <span>房间聊天</span><span id="chatToggle">▴</span>
+    </div>
+    <div class="chat-body" id="chatMsgs"></div>
+    <div class="chat-input-wrap">
+      <input id="chatInput" placeholder="说点什么…" onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="btn sm" onclick="sendChat()">发送</button>
+    </div>
+  </div>
+
+  <!-- 平面图弹窗 -->
+  <div id="floorplanModal" onclick="closeFloorPlan()">
+    <span class="close-x">×</span>
+    <img id="floorplanImg" src="https://aka.doubaocdn.com/s/Iotq2iAOnn" alt="平面图">
+  </div>
+
+  <!-- 我的剧本弹窗 -->
+  <div id="scriptModal" onclick="closeMyScript(event)">
+    <div class="script-box" onclick="event.stopPropagation()">
+      <div class="script-header">
+        <div>
+          <div class="script-title" id="scriptModalTitle">我的剧本</div>
+          <div class="script-subtitle" id="scriptModalSubtitle"></div>
+        </div>
+        <button class="script-close" onclick="closeMyScript()">×</button>
+      </div>
+      <div class="script-body" id="scriptModalBody"></div>
+    </div>
+  </div>
+
+  <!-- DM恢复房间确认弹窗 -->
+  <div id="dmRecoverModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:linear-gradient(180deg,#1e1616,#141010);border:1px solid #5a3a2a;border-radius:12px;padding:32px;max-width:420px;text-align:center;box-shadow:0 0 60px rgba(196,30,58,0.3);">
+      <div style="font-size:28px;color:#d4a843;margin-bottom:12px;">⚠ 检测到未结束的房间</div>
+      <div id="dmRecoverInfo" style="color:#c8b8a8;font-size:15px;line-height:1.8;margin-bottom:24px;"></div>
+      <div style="display:flex;gap:12px;justify-content:center;">
+        <button class="btn" onclick="recoverDmSession()" style="flex:1;">恢复房间</button>
+        <button class="btn ghost" onclick="discardDmSession()" style="flex:1;">新建房间</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <div id="hostDownMask">
+    <div class="hdm-ico">!</div>
+    <div class="hdm-text">主持人已断开，请等待重连…</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ==================== 游戏配置数据 ==================== */
+
+// 角色（4玩家 + DM）
+const CHARACTERS = {
+  xuebucai: { code:"纯情女生", realName:"薛步采", age:27, height:"168cm", avatar:"https://aka.doubaocdn.com/s/OibCyhCUgw" },
+  shiguiwu: { code:"朴实青年", realName:"史贵物", age:30, height:"172cm", avatar:"https://aka.doubaocdn.com/s/rfjYk94U5v" },
+  wugongde: { code:"豪爽大叔", realName:"吴恭德", age:38, height:"175cm", avatar:"https://aka.doubaocdn.com/s/n8Vyc1nne3" },
+  haozhuangbi:{ code:"优雅绅士", realName:"郝庄璧", age:28, height:"180cm", avatar:"https://aka.doubaocdn.com/s/FpkcHF30TD" },
+};
+const DM_CHAR = { code:"主持人", realName:"苟咚溪（比奇）", avatar:"https://aka.doubaocdn.com/s/ziSFKa1xQ8" };
+const SEAT_ORDER = ["tl","tr","bl","br"]; // 左上 右上 左下 右下
+const DM_SCRIPTS = [
+  { cat:"开场", title:"① 介绍背景（钟宁警官）", text:`我是钟宁，是星港市公安局的一名警察。大家都知道，现在剧本杀游戏行业非常火热，得到许多年轻人的喜爱。但不幸的是，前阵子在一家剧本杀店发生了命案。一位剧本杀作者邀请了四位玩家前去测试还没有发行的剧本杀，结果在游戏途中，这位兼任主持人的作者离奇死亡，凶手就在这四位玩家之中……后来我们警方很快就破获了案子，而我觉得这案子非常适合当做各位预备警员的一场考验，于是就将四位嫌疑人的供述整理成剧本杀形式的人物本。对了，必须得提醒一下，大家待会儿看到某些线索的时候可能会疑惑警方是如何得知的？警方当时的确是通过科学的程序侦破案件，破案后为了这次逻辑推理考验，特地将某些结论性信息做成线索提供给各位，所以各位不需要对线索来源感到疑惑，那并不代表我们当时实际调查时的情况，但线索必定真实。我相信，你们一定能够根据我手头上的资料，还原出案子的真相！` },
+  { cat:"开场", title:"② 介绍人物", text:`四位嫌疑人，我们暂时都还不清楚他们的名字。从封面信息来看，第一位是纯情女生，27岁，身高168厘米；第二位是豪爽大叔，38岁，身高175厘米；第三位是朴实青年，30岁，身高172厘米；第四位是优雅绅士，28岁，身高180厘米。虽然四位嫌疑人是三男一女，但是我们作为来参加考验的预备警员，都可以反串角色。那么，大家想挑谁呢？` },
+  { cat:"阅读", title:"③ 通篇阅读引导（两个问题）", text:`请大家带着以下两个问题浏览个人剧本（个人剧本为通篇阅读，一次性读完）：
+①四位是怎么样的人？
+②每个时间点大家做过什么？` },
+  { cat:"分享", title:"④ 分享信息引导", text:`请大家代入角色中，通过自己的话自行口述分享各自的剧本信息。注意：请围绕以上两个问题尽可能详细地（但也切忌直接逐字逐句念出来）分享信息。分享顺序推荐由最早到店的人开始。建议按照阶段来同步信息，即大家将【开场前】的内容同步完毕后，再到【进行时】的内容，然后是【谋杀后】的剩余信息。` },
+  { cat:"第一轮", title:"⑤ 发布平面图说明", text:`这是案发现场简单的平面图，各位如果搞不清楚文字描述的方位的话，可以先按照这张图简单直观理解一下。` },
+  { cat:"第一轮", title:"⑥ 第一轮线索引导（八个问题）", text:`请大家带着以下八个问题浏览线索与个人剧本：
+①空调开关过几次？
+②史贵物可能忘记了什么事情？
+③布帘被收拾在哪里？
+④盒子是被谁砸烂的？
+⑤奶茶是被谁撞倒的？
+⑥死者在什么时间段死亡的？
+⑦凶手行凶需要完成哪些步骤？
+⑧凶手是谁？` },
+  { cat:"第一轮", title:"⑦ 第一轮讨论投凶引导", text:`浏览完毕后，玩家开始推理。本环节控制在50分钟以内。但逻辑推理难度较高，为了整体游戏体验，请适当运用引导提示。当玩家毫无头绪时，可以参考引导提示逐条发布。` },
+  { cat:"过渡", title:"⑧ 过渡话术（进入第二轮）", text:`恭喜各位预备警员，找出了凶手吴恭德。当时在场办案的警方也是特别怀疑吴恭德，但是非常怪异的是，根本找不到他杀人的动机。根据在场四位嫌疑人的供述，彼此都是陌生人，聚在一起不过只是为了玩一场剧本杀游戏而已，怎么就见血了呢？相信四位来参加考验的预备警员也都很好奇，这场命案到底是为了什么？于是警方继续去针对吴恭德的作案动机进行调查，结果发现……不只是吴恭德，包括郝庄璧、史贵物、薛步采，乃至死者苟咚溪，都有着不为人知的秘密。我们现在来看一下，这四个嫌疑人到底有什么背景故事吧！` },
+  { cat:"第二轮", title:"⑨ 第二轮线索引导（两个问题）", text:`本轮线索共二十六条，全部属于故事性线索，很好理解。请大家带着以下两个问题浏览：
+①彼此是什么关系？
+②大家以前都做过什么见不得光的事？` },
+  { cat:"第二轮", title:"⑩ 第二轮讨论还原（九个关注点）", text:`在还原过程中，希望大家留意以下几个值得关注的点：
+①2022年中，史贵物给苟咚溪发过一封电子邮件，他为何会发这封邮件？
+②为何比奇如此恬不知耻直接以复制粘贴的方式抄袭已发行的作品？
+③在苟咚溪2023年的备忘录中，提到的"他"是谁？
+④在第九条线索中，"杀手锏"指的是什么？必须得做的事情又是什么？为何不做就会变成自取其辱？
+⑤在第十二条线索中，为何薛步采只回复了郝庄璧一串省略号？
+⑥在第十三条线索中，提到的"她"是谁？
+⑦为何"隐秘的角落"可以拿到《消失的牠》？
+⑧吴恭德是通过什么发现刘贝蒂的秘密？而刘贝蒂又是拿什么威胁吴恭德？
+⑨为何《消失的牠》会被恶意修改结局？` },
+  { cat:"过渡", title:"⑪ 过渡话术（进入第三轮）", text:`原来大家表面是陌生人，但其实多多少少都有点关系。但哪怕是有关系的熟人，对彼此而言也有可能是"陌生人"，因为多数时候，人在他人面前总会有意无意地去饰演某种"角色"，正所谓知人口面不知心，为了各种各样的目的从而作出不同程度的"不可靠叙述"。幸好，各位也已经顺利将嫌疑人的故事还原出来。可是，还是没有解决最初遗留下来的问题，也就是吴恭德到底为何要杀害苟咚溪呢？哪怕故事已经还原到这种程度，我们还是没有发现吴恭德与苟咚溪之间的联系。难道说，案子另有隐情？那么各位继续深入调查，这里就是最后的案件线索，请各位将真相彻底推理出来吧！` },
+  { cat:"第三轮", title:"⑫ 第三轮线索引导（六个问题）", text:`请大家带着以下六个问题浏览最后这八条线索：
+①大家的供述中，哪里存在"不可靠叙述"？
+②原逻辑中，哪些前提被推翻了？
+③死者的死亡时间是什么时候？
+④谁按的旋转按钮？
+⑤凶手行凶需要完成哪些步骤？
+⑥凶手是谁？
+（如果想的话，玩家此时可以互相换本浏览。）` },
+  { cat:"第三轮", title:"⑬ 第三轮讨论还原引导", text:`浏览完毕后，玩家开始讨论。本环节需要推理出最后的真相，有一定难度，但不及第一环节难度高。本环节只要根据人物关系，搞清楚哪里存在"不可靠叙述"，继而什么逻辑前提被推翻，便可重新组织逻辑链，确认行凶条件。注意：两个人之间的证词真伪需要根据他们的关系确认。假如两个人对同一件事撒了谎，那么必定是因为目前大家已知的理由。` },
+  { cat:"结语", title:"⑭ 考官结语（真相揭晓后）", text:`恭喜大家，成功推理出案件的真相。这起案件之所以给我如此深刻的印象，正是因为里面的每个人哪怕不是凶手，都有可能因为各自不为人知的目的，下意识又或者无意识地扭曲细节，从而大大增加了侦破的难度。世间纷纷扰扰，之所以自古以来落下如此多"罗生门事件"，也是因为类似的原因吧。这世界最难侦破的，依然是人心啊……
+
+继而我又想到了好几年前亲自侦破的一起案件。那起案件发生在雪夜，一名瘾君子在星港市的小旅馆内被杀，防盗窗和上锁的房门形成了完美的密室。尸体眼睛被蒙上黑布，极具仪式感的犯罪特征与十数年来的多起连环凶杀案如出一辙。
+
+当时临近跨年，上头却命令我们限期破案。我不得不马不停蹄，好不容易抽丝剥茧锁定了犯罪嫌疑人，对方却有完美的不在场证明！案件几乎陷入僵局，新的受害者却再度出现。在这起案件中，相关人员在表面上都是毫无联系的陌生人，这为我们的侦查增加了极大的难度。最终，我才知道她们彼此拥有着极为深厚的羁绊……
+哎，往事不堪回首。总之，今天的考验就到此结束，恭喜各位顺利毕业！如果对《陌生人》这个故事感兴趣，可以去购买原著小说支持作者。那么，我们日后再见。` }
+];
+
+// 场景图
+const SCENES = {
+  floorplan: "https://aka.doubaocdn.com/s/Iotq2iAOnn",
+  main: "https://aka.doubaocdn.com/s/qY1Phovyir",
+  corridor: "https://aka.doubaocdn.com/s/XGOT2YGUfJ",
+  crime: "https://aka.doubaocdn.com/s/bUysg0vtbV",
+};
+
+// BGM 曲目
+const BGM_TRACKS = [
+  { name:"Strange Thing",    url:"https://aka.doubaocdn.com/s/GUccGzPsKu" },
+  { name:"Apprehensive at Best", url:"https://aka.doubaocdn.com/s/eXIC2O0cAM" },
+  { name:"Basement",         url:"https://aka.doubaocdn.com/s/dVGm40hnMb" },
+  { name:"Insanity",         url:"https://aka.doubaocdn.com/s/VL3GJLQ0Cu" },
+  { name:"Sacrifice",        url:"https://aka.doubaocdn.com/s/CPp5U2ozCp" },
+  { name:"Silence",          url:"https://aka.doubaocdn.com/s/Dw3ebpHvHv" },
+];
+// 音效
+const SFX = {
+  page:   "https://aka.doubaocdn.com/s/hYbp4LUV1s",
+  door:   "https://aka.doubaocdn.com/s/Z9oAUMZwP9",
+  notify: "https://aka.doubaocdn.com/s/oFeMAVOeWA",
+  clue:   "https://aka.doubaocdn.com/s/exDsfhC6Ia",
+  click:  "https://aka.doubaocdn.com/s/qZyxryEwLE",
+  suspense:"https://aka.doubaocdn.com/s/uuDEsN0wR0",
+};
+const SFX_FALLBACK_CLICK = "https://aka.doubaocdn.com/s/qzYxryEwLE";
+
+// 游戏阶段（DM 推进）
+const STAGES = [
+  { id:"lobby",          name:"大厅",       scene:"main" },
+  { id:"intro",          name:"开场介绍",   scene:"corridor" },
+  { id:"reading",        name:"剧本阅读",   scene:"main" },
+  { id:"sharing",        name:"信息分享",   scene:"main" },
+  { id:"round1_clues",   name:"第一轮线索", scene:"crime" },
+  { id:"round1_discuss", name:"第一轮讨论", scene:"crime" },
+  { id:"round1_reveal",  name:"第一轮复盘", scene:"crime" },
+  { id:"round2_clues",   name:"第二轮线索", scene:"main" },
+  { id:"round2_discuss", name:"第二轮讨论", scene:"main" },
+  { id:"round2_reveal",  name:"第二轮复盘", scene:"main" },
+  { id:"round3_clues",   name:"第三轮线索", scene:"crime" },
+  { id:"round3_discuss", name:"最终讨论",   scene:"crime" },
+  { id:"final_vote",     name:"最终投凶",   scene:"main" },
+  { id:"final_reveal",   name:"真相大白",   scene:"crime" },
+];
+
+// 线索数据（来自 clues.json）
+const CLUES = {
+  round1: {
+    name:"陌生的凶手 · 案发相关线索",
+    clues: [
+      {id:1,title:"现场隔间与带血匕首",content:"隔间很小，顶多容得下2人活动。苟咚溪仰面躺于隔间地板上，心脏处插着一把匕首，匕首原本就在隔间内，并不是从外界带来。匕首手柄处被布帘包裹，牢牢卷了好几圈，警方确认是凶手此举是为了不留下指纹以及不沾上血迹。解开后，发现包着的布帘最里面沾有杀手锏盒子破裂后的碎屑。"},
+      {id:2,title:"尸体痕迹与死亡时间",content:"苟咚溪尸体上有与人争过的痕迹，尸体没有被移动过，隔间就是第一案发现场。因时间非常相近，所以法医鉴定的死亡时间没有意义，在这场考验中不额外提供，请各位预备警员自行判断死亡时间。"},
+      {id:3,title:"吴恭德的杀手锏优势",content:"吴恭德拿到的个人剧本身份有一个特殊优势，就是他即使不能够在破冰游戏中获得前两名，也可以在自助开本阶段开始之后，任意时间偷偷去找DM拿杀手锏道具——前提是杀手锏道具没被别人拿走。如果被别人拿走了，那么吴恭德就算去找DM也是徒劳。杀手锏道具在整场游戏的最后一轮才有用武之地，对最终获胜有很大帮助。"},
+      {id:4,title:"杀手锏盒子被砸破",content:"隔间内有一个破烂的杀手锏盒子，碎片因争斗散落得到处都是。根据附着的痕迹可以肯定盒子是被苟咚溪带来的小锤子砸破的。这两样都是剧本杀游戏道具，无任何杀伤力。按照苟咚溪设计的游戏规则，杀手锏道具被放置在盒子内，玩家需要用锤子砸破盒子才能获得。除了拥有特殊优势的吴恭德外，其他人在挑选道具时也拥有砸破盒子的选择。但正常来说，其他人必须在之后的环节中得到关键提示才能知道可以砸破盒子，否则无论如何都不可能想到，苟咚溪隐藏得非常深。目前已确认，关键提示还没得到曝光，游戏便因命案被中止了（杀手锏道具本身是什么并不重要）。"},
+      {id:5,title:"杀手锏使用权被分享",content:"拥有杀手锏道具的人可以将使用权秘密分享给队友。根据苟咚溪的记录，薛步采被分享了杀手锏使用权。"},
+      {id:6,title:"隔间两扇门的隔音",content:"隔间有两个门，一个面向走廊，一个面向大房。两个门的隔音效果都非常优秀，且若轻轻开关都不会发出声音。"},
+      {id:7,title:"步行时间与路线",content:"按照正常人的步速，从大房门口往走廊移动，行走到杂物房一般是10秒。杂物房走到隔间的时间同样是10秒。从杂物房走到通往洗手间的“旋梦阁”店出入口一般是5秒。大房（本身构造为圆形）因为弧形角度的关系，从大房门口或隔间门口都无法察觉到杂物房的动静。除了从隔间面向大房的门口直接进入隔间外，从大房出来后唯一能通向隔间的就是途径杂物房的一条路，因为另一边的路被封住了。"},
+      {id:8,title:"隔间灯光未断电",content:"“旋梦阁”没有断过电，隔间从苟咚溪到达后便一直亮着灯。熟悉店内情况的人有可能可以不借助灯光行动。"},
+      {id:9,title:"两个智能遥控器",content:"“旋梦阁”一共有两个智能遥控器。第一个遥控器在大房内被发现，另一个遥控器在杂物房的角落，被稳稳压在杂物底下。遥控器可控制包括空调、大房灯、走廊灯、杂物房灯在内的开关，且只要哪个电器开着就会在遥控器对应的按钮上发出光亮。但隔间灯的开关是在隔间单独控制的。杂物房的遥控器只有店老板和员工碰过。"},
+      {id:10,title:"空调与杂物房无凌乱",content:"空调无法设置定时开关。杂物房无任何凌乱痕迹。角度原因，位于大房门口处无法观察到杂物房的动静。"},
+      {id:11,title:"布帘收纳方式",content:"经警方确认，关于布帘的收纳，苟咚溪确实有按照史贵物所说的那样处理，且史贵物向苟咚溪说的关于布帘的收纳方式其他人并不知情。且按照史贵物要求的方式收纳的话，布帘会被放置在很明显的位置上，只要杂物房的门开着，经过的人就可能会看到布帘露出来的边。"},
+      {id:12,title:"布帘尺寸与去向",content:"布帘遮盖了隔间门的大部分，最矮处离地高1米。拆掉布帘至少需要15秒。可确定布帘被收走后苟咚溪就立刻按照史贵物所说的那样处理布帘。布帘没再进入过大房，且只被放置于隔间或杂物房。"},
+      {id:13,title:"薛步采手指墨水痕迹",content:"薛步采的左手食指、中指、无名指、尾指有少许黑笔墨水痕迹。"},
+      {id:14,title:"郝庄璧的坏笔",content:"在场只有郝庄璧用的笔坏掉，且只有郝庄璧碰过这支笔。"},
+      {id:15,title:"洒在走廊的烧仙草奶茶",content:"外卖都会被要求摆放在杂物房门口旁的桌子处，人经过时若不注意便有可能碰到。警察到场后，发现杂物房门口有一杯烧仙草奶茶（不是郝庄璧那杯），奶茶被人撞倒洒在地板上。根据掉落的方位与溅射痕迹，可确定推倒奶茶的力量是由杂物房内推往走廊外的。奶茶洒后在短时间内便停止流动，有一部分流过杂物房门口到房内，随后形成的整个区域内可确定没有任何人触碰过。而根据区域的范围，可确定在场四人若正常走路，就必定会踩到，除非以跳跃或跑动的方式从走廊的一侧移动到走廊的另一侧则有可能避开，可这两个动作都必定会在走廊的木地板上发出明显的声响（两边墙壁的宽度不容许人像成龙那样支撑着墙壁腾空挪过）。关键是，若从走廊移向杂物房内，或是从杂物房内移向走廊，由于角度与空间问题，即便跳跃或跑动都无法避开地上的奶茶。"},
+      {id:16,title:"史贵物进出杂物房时间",content:"若史贵物进入过杂物房，那么在整场游戏中他只进入过一次。可确定史贵物在“封闭感官”环节与薛步采闲聊结束后独自离开，直到薛步采回房这中间的时间段里，郝庄璧和吴恭德都在大房中。"},
+      {id:17,title:"凶手唯一性与手机",content:"凶手只有一个，且无其他人包庇。案发当天除了游戏开场前的外卖员，再无其他人出入过。外卖员与此案无关。可确定手机被DM收走后，直到发现尸体，四位嫌疑人都没有再碰过手机。"},
+      {id:18,title:"凶手可能撒谎或隐瞒",content:"凶手有可能会在与命案相关的行为上撒谎或隐瞒。"}
+    ]
+  },
+  round2: {
+    name:"吃瓜八卦 · 背景线索",
+    clues: [
+      {id:1,title:"苟咚溪亲自下场测试",content:"苟咚溪之前都是在线上测试，效果当然打折扣了很多。而这次是所有道具都做完了才决定线下测试。之前苟咚溪觉得以作者身份去测试，玩家多少会碍于情面而无法给出真实反馈，却可能会在背地与别人吐槽，所以苟咚溪选择假装成别的身份来测试作品。但这次他觉得是最后一次了，便决定直接以作者身份测试。这次测试并没有拉微信群。"},
+      {id:2,title:"史贵物教学班与笔名比奇",content:"2021年，史贵物在网络上开过“剧本杀教学班”，其中一位学生以笔名“比奇”报名（经确定是苟咚溪以前的笔名，但如今发《为了忘却的纪念》时则是用了真名），花了5888人民币学了三天，收获想必是相当之丰富。"},
+      {id:3,title:"史贵物斥责苟咚溪的邮件",content:"在苟咚溪的电脑中找到，2022年中，史贵物给苟咚溪发过一封电子邮件，内容如下：“从我的课上除了学会蹭热度，其他都没学到吗？这是什么垃圾，你写的东西怎么还是和以前一样烂，别以为学了点皮毛就能耀武扬威！自己再好好沉淀打磨，急于求成只会丢人现眼。”"},
+      {id:4,title:"发行举报比奇抄袭",content:"另外有一个发行透露：“说起来有点好笑，在《消失的牠》这部作品发行之后，居然有一个叫比奇的人向我投稿，名字也是叫《消失的牠》，我心想不会是同一部吧，结果还真是！里头的硬核部分和‘活着就是为了樱岛麻衣’发行的那部一模一样！现在的剧本杀新人作者真是太恶心了，抄袭毫无底线！”"},
+      {id:5,title:"史贵物笔名与一人独揽",content:"史贵物的笔名是“活着就是为了樱岛麻衣”（语不惊人死不休，起名都这样），2022年年底以大热硬核本《消失的牠》名声大噪，他既是作者，又是独立发行，对外宣称全程以一人之力完成所有事。"},
+      {id:6,title:"《消失的牠》未曝光压缩包",content:"在苟咚溪的电脑里，有一份《消失的牠》word文档压缩包，此压缩包的创建时间是在2022年初。里面不但包含已发行的内容，还有更多未曝光的内容。已发行的作品是一个只有案件的硬核本，而未曝光的内容中还有大量的故事背景。"},
+      {id:7,title:"比奇与史贵物从未见面",content:"苟咚溪在使用笔名“比奇”期间，都没有与老师史贵物见过面，一直只是在线上用文字联系。"},
+      {id:8,title:"苟咚溪2023年备忘录",content:"在苟咚溪的2023年备忘录里，记载着如下内容：“终于找到机会和他套近乎变熟络，才知道他平时就是习惯用手机和电脑的微信，也没什么备份的习惯。那就方便多了……然而他严防死守，一定得想个办法让他放下警惕才行。”"},
+      {id:9,title:"温拿·卢瑟授权咨询邮件",content:"在苟咚溪的电子邮件中，有两封他与美国推理小说作家温拿·卢瑟的往来邮件，标题是英文，翻译过来便是“关于《今晚干杯》的剧本杀改编授权咨询”。第一封是苟咚溪给对方发过去的，而第二封是对方的回复。内容被上锁了，无法浏览。但旁边有苟咚溪的特别备注：这是我报复他的杀手锏，但还有一件事必须得做，不然就会变成自取其辱。"},
+      {id:10,title:"史贵物电脑被格式化",content:"当天警察到场后调查发现，史贵物那台一直放在杂物房里的电脑资料被格式化清空了（被警察告知此事后，史贵物当场崩溃，但无法判断是否在伪装），而他的手机微信也没有与苟咚溪的聊天记录。"},
+      {id:11,title:"GG语音测试群组",content:"调查郝庄璧的手机，发现在他的GG语音软件中，有一个名为“《为了忘却的纪念》线上测试（20230101）”的群组。虽然与微信的头像、昵称等信息不相同，但警方已确定群主就是苟咚溪，而成员之一正是郝庄璧。"},
+      {id:12,title:"郝庄璧与薛步采私聊",content:"在郝庄璧的微信中，发现了他与薛步采的大量私聊，用词如暧昧期的密友那般亲近。其中有一段记录如下：“小薛，我看见你在群里说周一想测那个作者的本，我也一起上吧！”而平时聊天有来有回的薛步采，这次却只回复了一串省略号。"},
+      {id:13,title:"郝庄璧“必拿下”的聊天",content:"在郝庄璧的微信中，有他与好兄弟的聊天记录，其中有一段话如下：“兄弟们，这次测本是个难得的机会，我有办法一定会带着她赢，赢了她就归我了。必拿下！”"},
+      {id:14,title:"郝庄璧风评不佳",content:"据知情人透露：“郝庄璧在剧本杀玩家圈的风评不太好，曾经有好几位女性反馈他在玩情感本时不认真，且总是毛手毛脚。有一次被女性玩家当场责骂，他还死鸭子嘴硬，转过头来骂那个女生，脸皮真是厚得要死。”"},
+      {id:15,title:"郝庄璧差评被收买删除",content:"郝庄璧曾经在谜岛平台评价过《消失的牠》：“我根本盘不出来，就是个垃圾本！”后来郝庄璧删掉了这条评价，原因是他收到了“活着就是为了樱岛麻衣”的私聊，对方说他的本是绝对没有问题的，令玩家体验不好那当然只会是店家的问题，而他愿意好心代替店家补偿20块，只要郝庄璧肯删掉评价。"},
+      {id:16,title:"薛步采匿名打一分差评",content:"两周前的同一天，薛步采在谜岛匿名给《消失的牠》与《为了忘却的纪念》两个本打了一分差评，其中对《为了忘却的纪念》的评价如下：“家人们谁懂啊，毫无意义的环节，全是为难而难的软逻辑，诡计作者说啥就是啥吧，文笔也没多好，为赋新词强说愁，故事更是无聊至极，人设和立意更是让人难以理解。刚玩完，真下头，姐妹们快避雷！”"},
+      {id:17,title:"薛步采日记的痛苦",content:"薛步采的日记里记录着大量因为写不出作品，又或是写出的作品不够好而产生的痛苦：“从玩到写或许真不是那么容易，但凭什么他们的东西就能那么高分，都是水军罢了！”"},
+      {id:18,title:"薛步采当DM的内情",content:"知情人士透露：“你不知道吗？薛步采本来是因为热爱所以才去当全职DM，结果那家店要求她拍一些性感私房照，配合还缺人的局列表发去朋友圈揽客，以此来吸引顾客。可别被薛步采那外貌给骗了，实际上她的野心和嫉恨心都强得要死，她得不到就不想让别人得到。”"},
+      {id:19,title:"薛步采约吴恭德测车",content:"薛步采曾在微信上对吴恭德说：“BB，我看见你在玩家群上了那个人的测车，刚好周一我有空，我陪你一起去玩吧。”"},
+      {id:20,title:"吴恭德授权来源质疑",content:"知情人士透露：“吴恭德那家‘隐秘的角落’明明是情感本店，而隔壁就是主打硬核的店‘天天推理俱乐部’，吴恭德居然拿得到《消失的牠》授权？这事情一直是由刘贝蒂负责，吴恭德没有和史贵物有过联系。”"},
+      {id:21,title:"刘贝蒂带史贵物进房间",content:"知情人士透露：“《消失的牠》授权阶段，我看到吴恭德的老婆刘贝蒂以‘探店与商量授权’为名义带着史贵物一起进去了‘隐秘的角落’当时空无一人的房间，关上门。我猜测他们应该是在聊授权的事情吧，大概20分钟后就一同离开了。刚好当时大房马上要用来接客，开一个很催泪的情感本，DM是吴恭德。他们匆匆忙忙离开后，吴恭德就来上班了。因为这间房主打催泪情感本，所以每次开完本之后都会立刻收拾垃圾桶，换上新的垃圾袋。当天游戏过程时，吴恭德的演绎非常好，无任何异常，也没靠近过垃圾桶。结束后，玩家主动把用来擦眼泪和鼻涕的大量纸巾全部扔到垃圾桶里再离开。还是很好人的是吧？那是因为当天好几位玩家重感冒，他们也不好意思将黄色的鼻涕留给别人去收拾啦……然而当客人都离开了之后，还留在房间里的吴恭德好像正在做着什么，然后突然有所发现，便大发雷霆，拿起手机打给刘贝蒂，破口大骂对方是婊子。然后在第二天，‘隐秘的角落’就拿到《消失的牠》了。”"},
+      {id:22,title:"吴恭德与刘贝蒂离婚",content:"“隐秘的角落”拿到《消失的牠》之后不久，吴恭德就和刘贝蒂离婚了。分别时，吴恭德还想一巴掌打向刘贝蒂，然而刘贝蒂说了一句“你敢打？那就别怪我将你的所作所为曝光出去！那天你开完本肯定是做了那件事才会发现的吧？要是被别人知道，我看以后谁还来你的店打本”就让吴恭德收手了。"},
+      {id:23,title:"客服朋友圈的云吞纸巾",content:"“隐秘的角落”客服朋友圈总是发一堆被揉成“云吞”的纸巾被扔在桌面上的照片。"},
+      {id:24,title:"退不掉的《消失的牠》",content:"吴恭德和刘贝蒂分开后，吴恭德就想退掉《消失的牠》，然而史贵物不允许。实际上，“隐秘的角落”拿到《消失的牠》之后一次都没开过。"},
+      {id:25,title:"盗版文件夹日期疑点",content:"在圈子里曾经发生过一件事，《消失的牠》被人恶意改结局并影印盗版，将电子档上传至网上售卖。在吴恭德的电脑文件中，找到了盗版文件夹，但这文件夹的创建日期早于在网络上上架售卖的日期。"},
+      {id:26,title:"不可靠叙述说明",content:"个人剧本中涉及大量“不可靠叙述”。简单来说，即故事的讲述者或角色并不是一个可靠的讲述者，他们可能有偏见、记忆出错、心理障碍或需要隐瞒与撒谎的动机。哪怕是非凶手，都有可能出于私人的某些目的而进行不可靠叙述。个人剧本中的不可靠叙述必定与各位已了解到的故事有关系，亦即不会在不相关、不必要的事情上作出不可靠叙述（线索类信息必定真实）。"}
+    ]
+  },
+  round3: {
+    name:"不陌生的你我他 · 最后的调查",
+    clues: [
+      {id:1,title:"大房可旋转",content:"既然叫“旋梦阁”，那会旋转也不奇怪啦！相信你们隐隐约约都有察觉到了吧？大房所属的那个“圈”——也就是平面图中靠近中心的那一整块白色区域——可以通过按动按钮进行旋转。旋转是无声无息的。大房中无论是面向走廊的门，还是面向隔间的门，都是与大房为一体，亦即旋转时会同时旋转，但不影响隔间与面向走廊的墙壁的本身位置。假如旋转时人在走廊或隔间，就会看到大房正在转动，但在大房里的人只要不尝试开门就不会有任何察觉。（这同样是史贵物为了以前的某个独家本而专门设计的。不得不说，史贵物在这点上还是挺良心的！）黑色覆盖的部分在两堵墙之间，是空心的，但人无法进入，因为在走廊尽头、大房门口、隔间门口的两侧都有实物遮挡。"},
+      {id:2,title:"门的推开方向",content:"两个门都是由大房方向往外面的右上角推开。正常情况下，门是可以被推开的。但假如大房旋转到不合适的位置，那么门就会撞上墙壁，无法推开。"},
+      {id:3,title:"旋转按钮的使用记录",content:"隔间内与隔间门口旁的走廊墙壁上都各有两个按钮，分别是操纵大房向左转与向右转。每按一下，大房就会在一分钟内顺着按钮所在的方向转90度。按钮只记录使用相隔的时间，第一次是在隔间里按左键（左转），第二次是在走廊外按左键（左转），第三次与第四次都是在隔间里按右键（右转）。前两次的时间间隔是6分钟，第三次与第二次的时间间隔是1分30秒，第四次与第三次的时间间隔是1秒。"},
+      {id:4,title:"旋转按钮使用者身份",content:"可确定案发当天使用过旋转按钮的都是同一人，且并非史贵物。"},
+      {id:5,title:"组织者手册真相",content:"在真实完整的组织者手册中，全场游戏根本不需要上交手机，也不需要使用旋转装置。"},
+      {id:6,title:"杂物房遥控器没电",content:"“旋梦阁”的员工出来澄清：“在杂物房的那个遥控器早就没电啦，一直没买新电池，所以我们很久没用了，店长也舍弃了。”"},
+      {id:7,title:"厕所痕迹与吴恭德伤情",content:"大厦的清洁工在当天早上清洁过厕所。从痕迹可轻易确定，清洁后直到案发，男厕所只有一处用过，那就是最靠近门口的小便池。吴恭德确实是在洗手间扭伤脚，伤势较严重，可确定不能跑跳。"},
+      {id:8,title:"薛步采未触碰布帘",content:"薛步采在游戏中不是碟中谍，且她从大房走进隔间时身体从没有触碰过布帘，这时郝庄璧确实在走廊。"}
+    ]
+  }
+};
+const CLUE_IMAGES = {
+  "round1:1":  "https://aka.doubaocdn.com/s/TC0dUgUfgG",  // 带血匕首
+  "round1:4":  "https://aka.doubaocdn.com/s/3YG5MdR5TY",  // 被砸破的盒子+锤子
+  "round1:9":  "https://aka.doubaocdn.com/s/c8PvuTvT9O",  // 两个智能遥控器
+  "round1:11": "https://aka.doubaocdn.com/s/DLQWNVD6QV",  // 布帘收纳
+  "round1:12": "https://aka.doubaocdn.com/s/DLQWNVD6QV",  // 布帘尺寸与去向
+  "round1:13": "https://aka.doubaocdn.com/s/jJvIyh38eZ",  // 墨水痕迹
+  "round1:14": "https://aka.doubaocdn.com/s/jJvIyh38eZ",  // 坏笔
+  "round1:15": "https://aka.doubaocdn.com/s/En5SUEukza",  // 洒的奶茶
+  "round1:17": "https://aka.doubaocdn.com/s/StkZlfg2bO",  // 手机
+  "round2:3":  "https://aka.doubaocdn.com/s/E9NNzyqzBa",  // 电子邮件
+  "round2:6":  "https://aka.doubaocdn.com/s/0weaGQjkfV",  // 压缩包+电脑
+  "round2:8":  "https://aka.doubaocdn.com/s/LzlV2qHFIt",  // 备忘录
+  "round2:9":  "https://aka.doubaocdn.com/s/E9NNzyqzBa",  // 授权咨询邮件
+  "round2:10": "https://aka.doubaocdn.com/s/0weaGQjkfV",  // 电脑被格式化
+  "round2:17": "https://aka.doubaocdn.com/s/LzlV2qHFIt",  // 日记
+  "round2:23": "https://aka.doubaocdn.com/s/Zf9rPxJ1Ny",  // 云吞纸巾
+  "round2:25": "https://aka.doubaocdn.com/s/71r4qUUi6L",  // 盗版文件夹
+  "round3:1":  "https://aka.doubaocdn.com/s/3VJUUeRKAY",  // 旋转按钮
+  "round3:3":  "https://aka.doubaocdn.com/s/3VJUUeRKAY",  // 旋转按钮使用记录
+  "round3:4":  "https://aka.doubaocdn.com/s/3VJUUeRKAY",  // 旋转按钮使用者
+  "round3:6":  "https://aka.doubaocdn.com/s/c8PvuTvT9O",  // 遥控器没电
+  "round3:7":  "https://aka.doubaocdn.com/s/ItK7xuwXn1",  // 厕所痕迹
+  "round3:8":  "https://aka.doubaocdn.com/s/DLQWNVD6QV",  // 未触碰布帘
+};
+
+// 第一轮 8 个引导问题
+const GUIDE_QUESTIONS = [
+  "1. 案发时间窗内，四人各自的动线是怎样的？谁有机会进入隔间？",
+  "2. 洒在走廊的烧仙草奶茶说明什么？谁不可能在奶茶洒后经过杂物房门口？",
+  "3. 匕首手柄为何要用布帘包裹？布帘最后去了哪里？",
+  "4. 薛步采手指的墨水痕迹从何而来？与郝庄璧坏掉的笔有何关系？",
+  "5. 杀手锏盒子为何会被砸破？谁有动机在案发时砸开它？",
+  "6. 两个智能遥控器分别控制什么？杂物房遥控器为何关键？",
+  "7. 史贵物的布帘收纳习惯为何会成为线索？",
+  "8. 综合以上，谁是表面上最有嫌疑的凶手？",
+];
+
+/* ==================== 角色剧本（仅本人可见） ==================== */
+const SCRIPTS = {
+  xuebucai: {
+    title:"纯情女生", realName:"薛步采", age:27, height:"168cm",
+    sections:[
+      { h:"开场前", paras:[
+        "我一个月前还是“天天推理俱乐部”剧本杀店的DM,后来因为也想尝试写写剧本杀，所以选择了辞职。不过目前还没有一个正式的本子发行过，有点惭愧，哈哈。啊，警察先生你很讶异？不会啦，其实一个月出一个本在剧本杀圈也是不少见的。",
+        "言归正传。“旋梦阁”我之前从未听闻过，那天我也是第一次去。我和DM 不认识，只是上周发现他在一个玩家微信群里摇人，说自己写了一个新作品《为了忘却的纪念》，正式发行之前打算在“旋梦阁”进行最后一次测试，于是我就主动在群里说要上车。因为我想向其他老师学习，从优秀的作品中汲取经验。你说DM 叫苟咚溪是吗？噢噢，这个名字还挺可爱的！摇人之后，DM 也没有拉群，所以我也是后来到现场才知道玩家有谁，也是这个时候才知道这是个四人本。剧本杀原定开始时间是下午1 点，但是我在路上不小心遇到因为车祸造成的交通堵塞，所以晚了半小时。到“旋梦阁”门口时，我遇上了那个郝——郝啥来着？噢对，郝庄璧。谢谢警察先生的提醒。",
+        "我之前当DM 时有见过郝，他会来我们店里玩，但我和他不怎么熟悉。原来他也是刚到“旋梦阁”，于是我们一同走进去。不得不说，“旋梦阁”这家店内部构造挺特别，面积蛮大的，进门后沿着左侧走廊走会经过杂物房，从杂物房再走10 秒就到我们当天玩本的大房。里头已经有两个人。其中坐在进门后的右边那排的最上方位置的是一个看起来有点阴郁、瘦弱的青年，我没见过他，后来通过闲聊我才知道他是“旋梦阁”店长史贵物，原来他还是发行？谢谢警察先生的告知，但我没玩过他出的本。另一个坐在左边那排的最下方位置的是一个满脸胡碴的大叔，我当然认识他，他是“隐秘的角落”剧本杀店的店长吴恭德。他的店就挨着“天天推理俱乐部”。",
+        "是的，两家店是竞争对手呢！但受众群体不一样，我原先工作的那家店主打硬核本，而他的店主打情感本，所以彼此也没有什么冲突。我猜他应该不认识我这么一个小DM。",
+        "当时的他散发着生人勿近的气息，好像在和空气莫名斗气一样，满脸不屑，",
+        "所以我就选择坐在史贵物的旁边，也就是右边那排的最下方位置。在我后面进来的郝庄璧就将吴恭德旁边的椅子——也就是史贵物正对着的椅子挪到下方中间处，背对着走廊门口、正对着隔间门口坐下。吴恭德好像有点不爽，问他干吗要特意挪走，是嫌他臭吗？郝庄璧慌张地解释他听说这个本有吓人的环节，他不想坐得离DM 太近。确实，DM 之前也在微信中提醒过我这一点。大家都坐下后，我就觉得好热，说要打开空调。但店长史贵物沉迷在手游激烈的战斗中，没空招待我，只是随口说了一句“麻烦你找一下遥控器在哪儿，我记得好像是在这个房间里的”。然后我们就开始起身找遥控器，最终我好不容易才在角落的地板上找着。我站在角落，用遥控器打开了空调后，便将它放回原处，三步并作两步返回椅子。",
+      ]},
+      { h:"进行时", paras:[
+        "1 点45 分，DM 从隔间出来了。他说游戏开始前需要大家保持手机屏幕打开，然后上交给他。我猜这是游戏需要，毕竟这种玩法之前也出现过，所以我没有多问就顺了他的意。",
+        "收完手机后，他回了一趟隔间，然后拿着个人剧本与一把椅子出来，补了吴恭德旁边的空位，说如果有物品可以放椅子上。不过我们都没有东西要放上去。我们按照正常的游戏流程分派个人剧本，选完后我们开始安静浏览第一幕，期间他便坐在正对着郝庄璧的DM 位置。",
+        "看本过程中，郝庄璧偶尔会用黑笔在草稿纸上涂涂写写。大家都读完第一幕剧本后，我们开始进行破冰游戏。",
+        "顾名思义，破冰游戏就是为了让不大熟悉彼此的玩家之间产生点气氛嘛，这次也不例外，是一个有身体接触但比较和谐的游戏，但稍有不同的是，它需要在暗黑的环境下进行。",
+        "所以当DM 讲解完规则后，便用遥控器关了灯。当灯与门都被关上后，大房里非常黑暗，几乎是伸手不见五指。而我们就在看不见彼此的漆黑环境下，糊里糊涂地进行着破冰游戏。",
+        "游戏需要每个人用右手握着右边那个人的左手，通过手部的连接来围成一个圈。DM 说，不需要十指相扣，也不需要握住手心，如果觉得尴尬的话，握住对方的一个小指头就可以了。",
+        "所以郝庄璧就握住了我的左手。你问握哪儿？那必须只是尾指啊，我和他又不熟！拜托，我可是女生，这点矜持还是有的，而我自然也是只握着史贵物的尾指。破冰游戏在下午2 点结束，获得第一名的是郝庄璧。灯重新打开。按照规则，前两名可以按顺序单独跟DM 去隔间秘密挑选之后会用到的道具。而第一名则可以主动挑选一名队友，对方无法拒绝，且挑选后在全场游戏中就是固定的，最终共同承担胜负。而剩下的两人自然形成一队。但如果第一名不主动公布，挑选队友的结果其他人是不知道的，按照流程需要等到“封闭感官”环节之后，DM 才会公布。不过正常来说，只要想赢的话，都会选择和当时在第一幕的剧情里明显最强的史贵物组队吧！而当时最弱的就是我。当郝庄璧跟随DM 掀开布帘，打开门走进隔间的同时，史贵物就去了洗手间，而吴恭德也跟在后面。因为是私聊，所以隔间门被关上，我不知道郝庄璧挑选了什么道具。大概过了一分钟，隔间门被再次打开，郝庄璧出来了，他径直走出大房的房门。",
+        "而我是一个一旦专注于眼前之事，就会忽略外界信息，不容许被打断的人。",
+        "当时我正在反复阅读剧本，用笔记录关键细节信息，所以虽然轮到我进去找DM,可我并没有马上行动，三分钟后(2 点05 分)我才进去。其他人都还没回来大房。当我正常走进隔间后，DM 让我挑选眼前的道具。当时的他很正常，如今回想起来我也不觉得有啥问题。不过因为挑选道具和组队都是秘密，所以我也不知道郝庄璧挑选了哪个。我挑完后就回到座位上。你问我有没有观察隔间的环境？这……我不是一个会主动观察周围的人，所以这方面的信息我还真无法准确给到你。重新坐下后，我再次专注到个人剧本上——是的，挑细节是我的玩本习惯。",
+        "但我可以确定还不到三十秒，其他三个人就从外面回来了。",
+        "当时史贵物鼻青脸肿，吓了我一跳！我问怎么回事，他说洗手间刚清洁完，路特别滑，他不小心摔了个大跤，先撞到洗手台之后又撞到地板上。唉，这可真可怜。2 点08 分，郝庄璧说也要去上洗手间，史贵物便提醒他要注意安全。三分钟后，他回来了。",
+        "我们开始按照DM 在破冰游戏结束后留下的“游戏流程”自助进行接下来的环节——是这样的，按照“游戏流程”上的说明，接下来会有部分内容原本便是由我们自己进行的，不需要DM。",
+        "你问我是否从此DM 就没再出现过？是的，准确来说，我就再也没听到他的任何动静，当时我一直以为他是在隔间里休息，但如今想来可能他那会儿就已经死了……而在自助开本的过程中没什么值得留意的，倒是史贵物好像记忆力不是很好的样子，郝庄璧以调侃口吻随口说他得补一补了，这话好像冒犯到他，他有点生气，郝庄璧连忙道歉。哦对了！2 点16 分的时候，吴恭德说突然尿急，忍不住，需要上一趟洗手间。这时离他第一次去洗手间オ过了十五分钟。但人有三急，没办法，所以大家也都暂停了一下，还好没等太久，2 点20 分他就回来。",
+        "回来后，我们到了自助开本的最后一个环节，也就是“封闭感官”。顾名思义，我们需要利用DM 在游戏开场留下的道具，堵着鼻孔封闭嗅觉，戴上耳机封闭听觉，同时手也必须自觉放在膝盖上不能乱摸，并且用遥控器把灯和空调全部关掉，确保无任何光亮。",
+        "你知道的，在大房里把灯都关掉，和封闭视觉没什么区别。",
+        "这一幕，我们需要仔细聆听耳机里播放的内容，每个人都是不一样的。而我的个人剧本里有一项任务，是需要瞒着吴恭德和郝庄璧扮演的角色，私底下偷偷和史贵物扮演的角色进行秘密谈话（和玩家本身所处的队伍没有关系）。在熄灯前，我和史贵物交换了眼神，决定在这一幕中进行秘密谈话。",
+        "剧本里建议听到某个情节一一也就是开始10 分钟之后一再出去，原因是那会儿郝庄璧和吴恭德在耳机里会听到很猎奇的剧本故事，专注度按道理会达到最高。",
+        "熄灯后我并没有立刻收听录音，而是谨慎留意动静。我听到郝庄璧因为喝奶茶而打嗝，也听到吴恭德打着呵欠，他们两人的声音断断续续没停过。大概一分钟后，直觉告诉我这时正是时候，于是无视了剧本的建议，悄悄摘下耳机，用手肘暗示了一下隔壁的史贵物，一同摸黑溜去了走廊外。",
+        "走廊外同样漆黑一片，要是史贵物离我三步远，我就见不着他人了——正是因为通过遥控器确保了外头也没有开灯，我才敢开门溜出去的。",
+        "悄悄关上门后，史贵物按了一下墙壁某处，随后从墙壁横向移动出一块木板，完全挡住了去路。史贵物说，在大房门口左右两侧各有一道机关门，只要按一下按钮，就会同时开或关。机关门是史贵物为了以前某个独家本的效果而特殊建造的，隔音效果同样很好，没想到如今还能派上用场。他说这是双重保险，心理上更安定，可我倒是差点被吓出尖叫……我们就在走廊尽头悄悄交流一分钟——虽然一片漆黑，但这么短的时间概念我还是有数的——我发现他的记忆力好像不太好，但秘密私聊这种事，速战速决才是最安全的。谈话结束后，史贵物再次按下按钮，当隔板收回去后便先离开了，他消失在黑暗里。",
+        "而我想抽烟，所以就转身往走廊尽头走去，在那儿待了一会儿。对，大房内禁烟。你问我不怕被其他人发现吗？唉，这可没啥关系，很多剧本杀玩家玩累了中途都会出去休息一下，大家都理解的，只要我和史贵物的私聊没被发现就行。身上带着打火机？不不不，我没带打火机。我不喜欢抽传统香烟，我只抽电子烟。对了！值得一提的是，和史贵物分别之后过了一阵子——这里的时间我就无法确定了——我就有听到走廊不远处传来一杯奶茶掉落在地的声音，“叭”的一下。",
+        "但我没有在意。除此之外无其他动静了。我的耳朵很灵，加上在黑暗中听觉会变得更灵敏，信不信由你。烟抽了多久我也无法确定，反正抽完烟我就赶紧悄悄溜回大房。距离不长，加上我知道自己在右侧，所以还是可以凭借印象摸黑回到座位上的。虽然伸手不见五指，但是我在移动的过程中同样有听到郝庄璧喝奶茶的动静，以及吴恭德的呵欠，还有史贵物的轻微咳嗽。安全坐下后，我就专注聆听耳机中的录音信息，没有再关注外界的一切，我只能确保直到环节结束，期间大房里没有冒出半点光亮，不然一定会相当显眼。",
+        "大家听完后——说实话，聆听录音这一环节有点拖沓——便自觉摘下耳机，然后在一片漆黑中把听到的内容互相分享。分享完毕后，史贵物按照写好的流程，拿起关灯时被放在桌子上的遥控器，重新开了灯。时间此刻是下午3 点整。结果你猜怎么着？我竟然坐在了吴恭德的旁边。大家都很吃惊。史贵物开始怀疑我就是游戏里的“碟中谍”。毕竟只有“碟中谍”才会无端端去坐别的位置，为了明示真正同阵营的人自己在这个环节中秘密行动过。",
+        "所以我是不是？真正的命案都发生了，游戏不重要了吧！他们爱咋说就咋说，反正游戏现在也玩不成了……哦对，得向警察先生补充说明下，“碟中谍”可以在",
+        "“封闭感官”环节或者下一环节中提前去找DM 拿新武器。",
+        "当时气氛还挺焦灼的，但按照流程，自助开本的阶段到这里就结束了，接下来我们只需要坐在位置上等待DM 登场引领我们继续下一步。",
+        "然而我们四个人等啊等，始终都没见DM 现身。无论我们怎么喊，隔间里头都完全没有回应。我们越来越不安，于是一同打开隔间的门，结果就是你们看到的那样……",
+      ]},
+      { h:"谋杀后", paras:[
+        "虽然说我们玩的是过家家，但面对真正的凶杀案时，还是很机灵的反应过来需要保护现场，所以我们四个人都没敢贸然踏进隔间。可是为了报警最终还是决定由店长史贵物小心翼翼地走进去把自己的手机拿出来。报完警之后，我们心神未定，都逗留在大房里头，直到你们的到来。噢对了，这期间我还注意到吴恭德走路变得一瘸一拐了，可他在第一次上洗手间的时候还是健步如飞的。他啥时受伤了？我还真不确定，这你得问他。",
+      ]},    ]
+  },
+
+  shiguiwu: {
+    title:"朴实青年", realName:"史贵物", age:30, height:"172cm",
+    sections:[
+      { h:"开场前", paras:[
+        "“旋梦阁”是我的店铺。是的，我除了是一个剧本杀发行以外，还是店家。我和咚溪不怎么熟，最初他也只是作为玩家来我们店光顾而已。上周他说想要借中间的大房测试自己的本《为了忘却的纪念》，我心想周一是工作日，房间空着，就借给他了。我很好奇他写的作品，所以也上了车。当天我是中午12 点到店的，咚溪则是12 点10 分到。他到了后便直接待在大房的隔间里，估计是在做一些开本的准备吧。而我就一直坐在大房的玩家座位上。对，就是进门后的右边那排的最上方的座位。12 点30 分，那个满脸胡碴的大叔走进来了——噢，你说他叫吴恭德是吗？不，不，我根本不认识他。不过这名字挺有个性的，哈哈。啊，抱歉，在背后这样子说人家有点不太礼貌。什么？在面前也不礼貌？我的名字也半斤儿两？是的",
+        "是的，警察先生您说得对，我为我的言行诚恳地道歉。但是您这玩笑也不好笑。",
+        "言归正传，客人来了，我作为“旋梦阁”的老板，自然也是要尽待客之道，说了句“您好，来测本是吗？坐坐坐”便好心拉开我旁边的椅子，但是他最终选择坐在了我的斜对面——也就是进门后的左边那排的最下方的位置。那张椅子好像是有水渍，他还特意拿纸巾擦了一下。我忘记他为啥要坐那里了。",
+        "坐下后，我们就一直在位置上各干各的，没有离开过椅子。但你要说我做过啥嘛……我还真想不起来了。本来是计划下午1 点开本的，但你知道的，在剧本杀圈，实际开本比原定的晚半个小时已经是一种常规操作。",
+        "下午1 点30 分，剩下的帅哥和美女终于来了。你说帅哥叫郝庄璧，美女叫薛步采吗？呵呵呵，这车可真有意思。警察先生，请别再急着对我进行道德批判，我只是随意感慨下。",
+        "在座的其余三位玩家，在之前都没有来过我的店，我和他们完全没接触过。我们玩剧本杀的，除非特别熟的，否则都不会过问别人的个人信息。当然有些社恐的新手会担心尴尬，会很惊讶和第一次见的陌生人坐在一起玩七八个小时的剧本杀真的不会如坐针毡吗？实际上当游戏一开始，个人剧本发下来，玩家各自直接代入到剧本里的角色，那么彼此之间很自然就破冰了。",
+        "我印象很深刻的是，那位美女穿着一件背心，一条没口袋的球裤，轻身上阵，什么都没带就过来了。哦对，她的胸口挂着电子烟，但我相信她已经看到大房内明显的禁烟标志。",
+        "哎呀不好意思，我这人有两个缺点，一是说话很容易离题发散，二是记忆力不太好。言归正传——说到哪里了？你看，我记忆力真不太好。哦对对对，当时薛步采走在郝庄璧前头，她坐在了我的旁边，也就是进门后的右边那排的最下方的位置。当薛步采坐下后，郝庄璧就将我对面的椅子——也就是大叔旁边的椅子",
+        "挪到下方中间处，背对着走廊门口、正对着隔间门口坐下。他好像说过为何要特意如此，但我忘记了，你瞧我这记忆力，你还是自己去问他吧。",
+      ]},
+      { h:"进行时", paras:[
+        "然后是怎么样来着？噢对，1 点45 分，咚溪从隔间出来了，他说游戏开始前需要大家保持手机屏幕打开，然后上交给他。我猜这是游戏需要，毕竟这种玩法之前也出现过，所以我没有多问就顺了他的意。",
+        "收完手机后，他回了一趟隔间，然后拿着个人剧本与一把椅子出来，补了大叔旁边的空位，说如果有物品可以放椅子上。不过我们都没有东西要放上去。我们按照正常的游戏流程分派个人剧本，选完后我们开始安静浏览第一幕，期间他便坐在正对着帅哥的DM 位置。",
+        "看本过程中，帅哥偶尔会用黑笔在草稿纸上涂涂写写。",
+        "大家都读完第一幕剧本后，我们开始进行破冰游戏。",
+        "顾名思义，破冰游戏就是为了让不太熟悉彼此的玩家之间产生点气氛嘛，这次也不例外，是一个有身体接触但比较和谐的游戏，但稍有不同的是，它需要在暗黑的环境下进行。",
+        "所以DM 讲解完规则后，便用遥控器关了灯。当灯与门都被关上后，大房里非常黑暗，几乎是伸手不见五指。而我们就在看不见彼此的漆黑环境下，糊里糊涂地进行着破冰游戏。",
+        "游戏需要每个人用右手握着右边那个人的左手，通过手部的连接来围成一个圈。DM 说，不需要十指相扣，也不需要握住手心，如果觉得尴尬的话，握住对方的一个小指头就可以了。",
+        "当时我左边的美女握着我的左手尾指，而我自然也是只握着大叔的尾指，毕竟两个大男人什么的，授受不亲嘛。什么？亲也无妨？哎呀，警察同志，您可别再开我玩笑了。",
+        "游戏在下午2 点就结束了，获得第一名的是那个帅哥——瞧我这破记性！原谅我一直记不住他的名字。灯重新打开。按照规则，前两名可以按顺序单独跟DM 去隔间秘密挑选之后会用到的道具。而第一名则可以主动挑选一名队友，对方无法拒绝，且挑选后在全场游戏中就是固定的，最终共同承担胜负。而剩下的两人自然就是一队了。但只要第一名不主动说出，挑选队友的结果其他人是不知道的，按照流程得等到“封闭感官”环节之后，DM 才会公布。不过正常来说，只要想赢的话，都会选择和当时在第一幕的剧情里明显最强的我组队吧！而当时最弱的就是那位美女。",
+        "当帅哥跟随咚溪掀开布帘，打开门进入隔间后，我就去了外头的大厦洗手间。",
+        "大叔也在？哦对，你这么一说我才想起来，他确实也跟着我来上洗手间了。你也问过他了是吧？对，我们刚好一起如厕，然后花了点时间整理一下仪容仪表，随后就回去。",
+        "然而因为刚清洁完嘛，厕所真的很滑啊！小便结束后我不小心摔了个大跤，先撞到洗手台之后又撞到地板上，所以你看我鼻青脸肿的，仪容仪表都白整理了，真是疼死了……",
+        "但是游戏还要继续。剧本杀这玩意儿，烦就烦在你没法因个人原因中途终止。",
+        "啊，谢谢提醒，不然我又得开始离题了。Well,anyway,回去时，我看见帅哥正在大房门外休息。",
+        "我们三人同时回去了大房，这时是2 点06 分。我看见第二名的美女刚坐下，她说自己不到三十秒前已经去DM 那里拿完道具了。",
+        "这时我看见原本挂在隔间门前的布帘不见了，我猜测是被咚溪收起来了吧。咚溪之前在找我借场地的时候，说布帘会影响之后的演绎，我就说你可以随时拆下来，但得叠好后放去杂物房里头面对门口的第一个用来堆放剧本杀盒子的架子上，把它压在从最上方往下数第五个与第六个剧本杀盒子的中间——原谅我是一个有特殊洁癖加强迫症的人，我特别注重整洁，我有自己的一套收纳规律。我很偏执，但人家都说入乡随俗，既然借我的地方用就得按照我的规矩走嘛。",
+        "而我多年来还有一个习惯，就是我一旦离开店，就肯定会锁上杂物房的门。因为里头放着我的电脑，以及其他贵重物品，我害怕被人拿走，毕竟这里没监控。是的，哪怕去洗手间，我都会锁上门，回来再打开。当天我也不例外。谢谢警察先生夸我的安全防范意识到位，不像很多客户总说我这是被害妄想症。",
+        "我之前还和咚溪补充说明，如果杂物房关了，那就把布帘放在隔间的茶几上就好，等游戏结束后我再自己收拾。",
+        "话又说回当天，2 点08 分，那位帅哥说要去上厕所便出去了。我提醒他要小心地滑。又过了三分钟，帅哥回来。",
+        "我们开始按照DM 在破冰游戏结束后留下的“游戏流程”自助进行接下来的环节——是这样的，按照“游戏流程”上的说明，接下来会有部分内容原本便是由我们自己进行，不需要DM。",
+        "你问我是否从此咚溪就没再出现过？是的，准确来说，我就再也没听到他的任何动静，当时我一直以为他是在隔间里休息，但如今想来可能那会儿就已经死...",
+        "OK,有点跳跃了。我们自助开本的过程中，到2 点16 分，那个大叔说要上厕所。2 点20 分他才回来。",
+        "回来后，我们到了自助开本的最后一个环节，也就是“封闭感官”。顾名思义，我们需要利用咚溪在游戏开场留下的道具，堵着鼻孔封闭嗅觉，戴上耳机封闭听觉，同时手也必须自觉放在膝盖上不能乱摸，并且用遥控器把灯和空调全部关掉，确保无任何光亮。",
+        "你知道的，在大房里把灯都关掉，和封闭视觉没什么区别。",
+        "这一幕，我们需要仔细聆听耳机里播放的内容，每个人都是不一样的。而我的个人剧本里有一项任务，是需要瞒着大叔和帅哥扮演的角色，私底下偷偷和美女扮演的角色进行秘密谈话（和玩家本身所处的队伍没有关系）。",
+        "你说花样真多？你下班后也想去体验一下剧本杀？唉，警察先生，现在的本子又有推理，又有沉浸体验，又有机制博弈，就像大乱炖，但每样单挑出来都犹如肋，就怕像你们这样循规蹈矩的玩不过来。什么？我没有刻板印象啦，好了好了，我不再随便发散话题了……",
+        "在熄灯前，我和美女交换了眼神，决定在这一幕中进行秘密谈话。剧本里建议听到某个情节——也就是开始10 分钟之后——再出去，原因是那会儿其余二人在耳机里会听到很猎奇的故事，专注度按道理会达到最高。熄灯后我并没有立刻收听录音，而是谨慎留意动静。我听到帅哥因为喝奶茶而打嗝，也听到大叔打着呵欠，他们两人的声音断断续续没停过。",
+        "大概一分钟后，直觉告诉我这时正是时候，于是无视了剧本的建议，悄悄摘下耳机，和旁边的美女碰了碰，一同摸黑溜去了走廊外。",
+        "走廊外同样漆黑一片——正是因为通过遥控器确保了走廊也没有开灯，我和美女才敢开门溜出去的。",
+        "悄悄关上门后，我按了一下墙壁某处，随后从墙壁横向移动出一块木板，完全挡住了去路。",
+        "我以前为了某个独家剧本的效果而特殊设计了两道机关门，分别安装在大房门口的左右两侧。只要我按一下按钮，它们就会同时开或关。隔音效果同样很好，没想到这门如今还能派上用场。这是双重保险，让身在其中的我更加放心",
+        "可美女却差点被吓出尖叫声，怪我动作突然，没提前告诉她……",
+        "我们就在走廊尽头悄悄交流了一分钟——虽然一片漆黑，但这么短的时间概念我还是有数的——毕竟秘密私聊这种事，速战速决才是最安全的。",
+        "我只记得，最终我是自己一个人先摸黑溜回了大房。距离不长，加上我是这家店的老板，凭借印象摸黑回到座位上对我来说毫无压力。她为何没有和我一起回来？我也忘了，这你问她吧！",
+        "但之后我还是提心吊胆，害怕她未能顺利回来，所以直到察觉到她回来之前，我都根本没戴耳机。在这过程中，大叔和帅哥总是断断续续发出声音。",
+        "至于她是什么时候回来的，具体时间我就不清楚了。",
+        "另外，我虽然不是时刻在大房里，但可以确保我在的时候没有任何亮光。",
+        "大家听完后——说实话，聆听录音这一环节有点拖沓——便自觉摘下耳机，然后在一片漆黑中把听到的内容互相分享。分享完毕后，我按照写好的流程，拿起关灯时被放在桌子上的遥控器，重新开了灯。时间此刻是下午3 点整。",
+        "结果你猜怎么着？我发现美女竟然坐在了我的对面——也就是大叔的旁边！大家都很吃惊。",
+        "但我十分怀疑她就是游戏里的“碟中谍”。只有这样才说得通为什么她会无端端坐到别的位置，为了告知与自己同阵营的人，自己在这个环节中秘密行动过！",
+        "“碟中谍”可以在“封闭感官”环节或者下一环节中秘密提前去找DM 拿新武器——噢！这下我想起来了，我当时怀疑她没和我一起回房间就是为了去拿武器。",
+        "哎呀，我没想到竟然会有人忍心骗我这么一个实诚的人，果然是人善被人欺啊。",
+        "按照流程来说，自助开本的阶段到这里就结束了，接下来我们只需要坐在位置上等待DM 引导我们继续下一步。",
+        "然而我们四个人等啊等，始终都没见咚溪现身。无论我们怎么喊，隔间里头都完全没有回应。我们越来越不安，于是一同打开隔间的门，结果就是你们看到的那样……",
+      ]},
+      { h:"谋杀后", paras:[
+        "虽然说我们玩的是过家家，但面对真正的凶杀案时，还是很机灵的反应过来需要保护现场的，所以我们四个人都没敢贸然踏进隔间。可是为了报警最终还是决定由我这个店长小心翼翼地走进去把自己的手机拿出来并报警。以上整个行为都在其他三个人的监察下，可以确定我没有任何小动作啊！",
+        "是的，我连杂物房都没回过，哪有这心情啊。报完警之后，我们心神未定，都逗留在大房里头，直到你们的到来。",
+      ]},    ]
+  },
+
+  wugongde: {
+    title:"豪爽大叔", realName:"吴恭德", age:38, height:"175cm",
+    sections:[
+      { h:"开场前", paras:[
+        "我是一名剧本杀店的店长——不，不，不是当天发生案件的那家主打硬核本的“旋梦阁”，而是在别的区的另一家主打情感本的店，在这里无关紧要的事就不多说了——“旋梦阁”我之前从未听闻过，那天我也是第一次去。我和DM 不认识，只是上周发现他在一个玩家微信群里摇人，说自己写了一个新作品《为了忘却的纪念》，正式发行之前打算在\"旋梦阁\"进行最后一次测试，于是我就主动上车了。你说DM 叫苟咚溪是吗？哦，好的，这个名字很卡通。摇人之后，DM 也没有拉群，所以我也是后来到现场才知道玩家有谁，也是这个时候才知道这是个四人本。不得不说，“旋梦阁”这家店内部构造挺特别，面积蛮大的，进门后沿着左侧走廊走会经过杂物房，从杂物房再走10 秒就到了我们当天玩本的大房。我是12 点30 分到的，当时大房里已经坐着史贵物。我不认识他，后来才知道他是这家店的店长。他坐在进门后的右边那排的最上方的位置，而我则坐在进门后的左边那排的最下方的位置。警察先生，你说我为什么没有应史贵物的邀请，坐在他隔壁的位置，而是宁愿选择另一张有水渍的椅子？哦，这点细节你也查出来了，不愧是警察先生。是吗，你已经问过他了。好吧，谢谢提醒，不然我还真忽略了，不过我真不理解细究这些小事有什么意义……是的是的，你们警方会自行判断，那我就言归正传了一—理由没什么啦，其实就是空调的出风口直接对着那个位置猛吹，我当天有些小感冒，整个人状态都不是很好，所以就没坐那儿了。是的，就这么简单。",
+        "坐下后，我们一直在位置上各干各的，我戴着耳机看鬼畜视频，没有留意史贵物，只是眼角余光注意到他好像在按着什么。可以确定我们都没有离开过椅子。本来是计划下午1 点开本，但你知道的，在剧本杀圈，实际开本比原定时间晚半个小时已经是一种常规操作。人没齐，我就继续玩手机。",
+        "下午1 点30 分，剩下的帅哥和美女终于来了。那个帅哥我见过，但谈不上熟悉。他之前经常来我们店里打情感本，有一个很好记的名字，叫郝庄璧。哎，警察先生，不要笑人家，这样太不礼貌了。上学时老师说过一句话，在人前不能做的事，在人后也不要做。我将这句话记到现在，希望警察先生您也能好好记住。话说回来，我倒觉得这名字挺好的，很古典大气。",
+        "至于那位美女……我就不太认识了。你说她叫薛步采？哪个BU?哪个CAI?哦哦哦，知道了。我印象很深刻的是，她穿着一件背心，一条没口袋的球裤，轻身上阵，什么都没带就过来了。哦对，她的胸口还挂着电子烟。",
+        "当时薛步采走在郝庄璧前头，她坐在了史贵物的旁边，也就是进门后的右边那排的最下方的位置。当薛步采坐下后，拿着奶茶的郝庄璧就将我旁边的椅子——也就是史贵物正对着的椅子挪到下方中间处，背对着走廊门口、正对着隔间门口坐下。我问他干吗要特意挪走，是嫌我臭吗？我本来只是开玩笑，但大概我的表达方式不太妥，对方好像会错意，慌张地解释道他听说这个本有吓人的环节，他不想坐得离DM 太近。确实，DM 之前也在微信中提醒过我这一点。大家都坐下后，薛步采说好热，要打开空调。沉迷在手游激烈战斗中的史贵物只是随口说了一句“麻烦你找一下遥控器在哪儿，我记得好像是在这个房间里的”后就不管了。于是我们三人开始起身找遥控器，最终是薛步采在角落的地板上找到的。她站在角落，用遥控器打开了空调后，便将它放回原处，三步并作两步返回椅子。",
+      ]},
+      { h:"进行时", paras:[
+        "1 点45 分，DM 从隔间出来了。他说游戏开始前需要大家保持手机屏幕打开，然后上交给他。我猜这是游戏需要，毕竟这种玩法之前也出现过，所以我没有多问就顺了他的意。",
+        "收完手机后，他回了一趟隔间，然后拿着个人剧本与一张椅子出来，补了我旁边的空位，说如果有物品可以放椅子上。不过我们都没有东西要放上去。接着我们按照正常的游戏流程分派个人剧本，选完后我们开始安静浏览第一幕，期间他便坐在正对着郝庄璧的DM 位置。",
+        "看本过程中，郝庄璧偶尔会用黑笔在草稿纸上涂涂写写。",
+        "大家都读完第一幕剧本后，我们开始进行破冰游戏。",
+        "顾名思义，破冰游戏就是为了让不太熟悉彼此的玩家之间产生点气氛嘛，这次也不例外，是一个有身体接触但比较和谐的游戏，但稍有不同的是，它需要在暗黑的环境下进行。",
+        "所以当DM 讲解完规则后，便用遥控器关了灯。当灯与门都被关上后，大房里非常黑暗，几乎是伸手不见五指。而我们就在看不见彼此的漆黑环境下，糊里糊涂地进行着破冰游戏。",
+        "游戏需要每个人用右手握着右边那个人的左手，通过手部的连接来围成一个圈。DM 说，不需要十指相扣，也不需要握住手心，如果觉得尴尬的话，握住对方的一个小指头就可以了。我的左侧自然就是史贵物了。史贵物握着我的左手尾指，而我自然也是只握着郝庄璧的尾指。毕竟都是男人，就别给对方传递什么可能会产生误解的“信息”了，你说是吧！破冰游戏在下午2 点结束，获得第一名的是郝庄璧。灯重新打开。按照规则，前两名可以按顺序单独跟DM 去隔间秘密挑选之后会用到的道具。而第一名则可以主动挑选一名队友，对方无法拒绝，且挑选后在全场游戏中就是固定的，最终共同承担胜负。而剩下的两人自然形成一队。但如果第一名不主动公布，挑选队友的结果其他人是不知道的，按照流程需要等到“封闭感官”环节之后，DM 才会公布。不过正常来说，只要想赢的话，都会选择和当时在第一幕的剧情里明显最强的史贵物组队吧！而当时最弱的就是薛步采。当郝庄璧跟随DM 掀开布帘，打开门进入隔间后，史贵物就去了外头的大厦洗手间。我也跟着去小便了。我不知道大厦的洗手间在哪里，自然要跟着他。途",
+        "中经过杂物房时，他顺手锁上7 门。小便完之后，我整理了一下仪容仪表，便同样跟在他身后回来。彼此没有互相打扰。回来经过杂物房的时候，他又顺手重新打开了杂物房的门。对，他只是开关，没进过去。这来回有没有去过隔间？我们都没有。走到走廊尽头，我看见郝庄璧正在大房门外休息。我们三人同时回到大房。此时是2 点06 分，获得第二名的薛步采说她不到三十秒前去了DM 那里拿完道具了。这时我看见原本挂在隔间门前的布帘不见了。2 点08 分，郝庄璧说要去上厕所便出去了。史贵物提醒他要小心地滑。又过了三分钟，他回来我们开始按照DM 在破冰游戏结束后留下的“游戏流程”自助进行接下来的环节——是这样的，按照“游戏流程”上的说明，接下来会有部分内容原本便是由我们自己进行，不需要DM。",
+        "你问我是否从此刻起DM 就没再出现过？是的，准确来说，我就再也没听到他的任何动静，当时我一直以为他是在隔间里休息，但如今想来可能他那会儿就已经死了……而在自助开本的过程中没什么值得留意的，倒是史贵物好像记忆力不是很好的样子，郝庄璧以调侃口吻随口说他得补一补了，这话好像冒犯到他，他有点生气，郝庄璧连忙道歉。然后在2 点16 分，我对其他人说“突然尿急，忍不住，需要上一趟洗手间”，接着便离开了房间，四分钟后重新回到大房。",
+        "回来后，我们到了自助开本的最后一个环节，也就是“封闭感官”。顾名思义，我们需要利用DM 在游戏开场时留下的道具，堵着鼻孔封闭嗅觉，戴上耳机封闭听觉，同时手也必须自觉放在膝盖上不能乱摸，并且用遥控器把灯和空调全部关掉，确保无任何光亮。在大房里把灯都关掉，和封闭视觉没什么区别。",
+        "这一幕，我们需要仔细聆听耳机里播放的内容，每个人都是不一样的。",
+        "你说花样真多？你问我觉得这个本如何？唉，警察先生，说实话以我目前的体验，这个本还是挺一般的。现在的剧本杀总搞一些华而不实的东西，体量不够就硬塞机制游戏凑时长，逻辑不够就加违和的设定条件。而我是一个主打情感本的店家，说实话我觉得自己的文学素养还是挺充足的，对剧本杀未来的发展也有比较高的追求。可惜现在的情感本大多都是套路，套模板与公式，大家都能猜到是怎么样的结构与人设。最重要是，似乎市面上大家都觉得一个好的情感本就是需要掉“小珍珠”，掉了就是好评，不掉就是差评，于是很多剧本选择卖惨，强行让人做无",
+        "意义的抉择，再由DM 出来演绎、互动一下，激发情绪，这下就能让大家感觉意犹未尽了。但在我看来，这些都是非常浅层的情绪，是对“情感”二字很狭隘的理解，我是希望市面上能有更多有深度的，值得玩家合理性去辩证思考继而沉淀的情感本，是以高贵的文学艺术殿堂为目标，而不仅仅是单纯地以“是否哭泣”“掉多少眼泪”来定义作品的好坏，那就像膨化食品一样毫无营养！虽然说大俗即大雅，雅俗共赏，但是我们不能止步于低级的追求！",
+        "啊，对不起，一不小心就说嗨了。毕竟是自己热爱的事业，可这些对破案应该毫无帮助吧……给您添麻烦了，实在是不好意思。总而言之，警察先生您能理解我是怎么样的一个人就好。等等！请容我强调一句：作为一个有良心的、负责任的、光明正大的店家，虽然我有个人追求，但我永远会对玩家的选择与作品的风格一视同仁。哪怕我个人不喜欢，也会尝试去理解，毕竟文无第一。好的好的，言归正传——在封闭感官的情况下，我开始沉浸在耳机的音频里。虽然我不能确定其他人的动静，但我可以确保直到环节结束，期间大房里没有冒出半点光亮，不然一定会相当显眼。",
+        "大家听完后——说实话，聆听录音这一环节有点拖沓——便自觉摘下耳机，然后在一片漆黑中把听到的内容互相分享。分享完毕后，史贵物按照规定好的流程，拿起关灯时被放在桌子上的遥控器，重新开了灯。此时是下午3 点整。结果你猜怎么着？我发现薛步采竟然坐在了我的旁边！大家都很吃惊。史贵物开始怀疑她是游戏里的“碟中谍”。只有这样才说得通为什么她会无端端坐到别的位置，为了告知与自己同阵营的人，自己在这个环节中秘密行动过！",
+        "“碟中谍”可以在“封闭感官”环节或者下一环节中秘密提前去找DM 拿新武器。",
+        "按照流程，自助开本的阶段到这里就结束了，接下来我们只需要坐在位置上等待DM 引导我们继续下一步。",
+        "然而我们四个人等啊等，始终都没见DM 现身。无论我们怎么喊，隔间里头都完全没有回应。我们越来越不安，于是一同打开隔间的门，结果就是你们看到的那样……",
+      ]},
+      { h:"谋杀后", paras:[
+        "虽然说我们玩的是过家家，但面对真正的凶杀案时，还是很机灵地反应过来需要保护现场，所以我们四个人都没敢贸然踏进隔间。可是为了报警最终还是决定由店长史贵物小心翼翼地走进去把自己的手机拿出来。报完警之后，我们心神未定，都逗留在大房里头，直到你们的到来。你问我走路为啥一瘸一拐？哦，对，提起这个，外面的地真的太滑了，上洗手间时我不小心扭了脚，所以走路看起来不太自然。是的，没法跑跳，只能一步一步地挪动。你要是不信我可以去医院开证明。你问第几次上洗手间扭的？呢……这个……第……第二次，对，第二次。",
+      ]},    ]
+  },
+
+  haozhuangbi: {
+    title:"优雅绅士", realName:"郝庄璧", age:28, height:"180cm",
+    sections:[
+      { h:"开场前", paras:[
+        "我是一名剧本杀玩家，主要玩情感本但对其他类型也并不排斥，我入坑五年，目前已经玩了超过六百个作品。我打本的初衷是希望能够在剧本杀的世界中体验到不同世界的故事，体会未曾有机会亲身经历的热情感，领略作者构造的缤纷的景象与那细小却充满魅力的灰色脑细胞……是吗？真的很像在面试？哈哈，不好意思，我平时待人也是这样，比较实诚，不搞虚的。总而言之，我是一名剧本杀游戏经历比较丰富，同时在圈子里交友也比较广泛的一位优质老手。但言归正传，“旋梦阁”我之前从未听闻过，那天我也是第一次去。我和DM不认识，只是上周发现他在一个玩家微信群里摇人，说自己写了一个新作品《为了忘却的纪念》，正式发行之前打算在“旋梦阁”进行最后一次测试。我是一个很热衷于给作者反馈的玩家，于是我就主动在群里说要上车——咦，是我说了什么冒犯您了吗？警察先生，您怎么无缘无故骂人呢？哦哦，您是说DM 叫苟咚溪是吗？啊不好意思，是我误会了，请容我对您说一句抱歉，也对死去的苟咚溪说一句抱歉。摇人之后，DM 也没有拉群，所以我也是后来到现场才知道玩家有谁，也是这个时候才知道这是个四人本。剧本杀原定开始时间是下午1 点，但是路上我刚好遇到一位过马路的老奶奶需要帮助，后来我干脆送腿脚不方便的她回家，所以耽搁了半小时。我以前玩剧本杀从不迟到的，所以这次我特别愧疚。到“旋梦阁”门口时，我遇上了那位女士——她好像是叫薛步采？我不太确定，但我记得她以前是“天天推理俱乐部”剧本杀店的DM。原来她也是刚到“旋梦阁”，于是我们一同走进去。不得不说，“旋梦阁”这家店内部构造挺特别，面积蛮大的，进门后沿着左侧走廊走会经过杂物房，从杂物房再走10 秒就到我们当天玩本的大房。经过杂物房时，我将自己点的外卖，一杯椰果奶绿也顺带拿上。哈哈，外卖比下单人早到店在剧本杀圈里是很常见的事啦。大房里头已经有两个人。其中坐在进门后的右边那排的最上方位置的是一个看起来有点阴郁、瘦弱的青年，我没见过他，后来通过闲聊我才知道他是“旋梦阁”店长史贵物。原来他还是发行？谢谢警察先生的告知，但我没玩过他出的本。另一个坐在左边那排的最下方位置的是一个满脸胡碴的大叔，我当然认识他，他是“隐秘的角落”剧本杀店的店长吴恭德。他的店和“天天推理俱乐部”",
+        "紧挨着，但不同于主打推理本的后者，他是主打情感本的，所以我比较常去他那儿。",
+        "但我不确定他认不认识我，毕竟我时刻告诉自己，不能自我意识过剩。而当时他坐在椅子上叉着双臂，摆出冷漠的表情盯着手机，给人的感觉和平常不一样，令人不太舒服。我猜测他是炒股赔了钱，所以识相地没有打扰他。女士优先。走在前头的薛步采选择坐在史贵物的旁边，也就是右边那排的最下方位置。",
+        "而我就将吴恭德旁边的椅子——也就是史贵物正对着的椅子挪到下方中间处，背对着走廊门口、正对着隔间门口坐下。吴恭德好像误会了我的意思，异常粗鲁地问我干吗要特意挪走，是嫌他臭吗？我很怕被人误会，慌张地解释道我听说这个本有吓人的环节，我不想坐得离DM 太近。大家都坐下后，薛步采觉得好热，说要打开空调。但店长史贵物沉迷在手游激烈的战斗中，只是随口说了一句“麻烦你找一下遥控器在哪儿，我记得好像是在这个房间里的”。于是我们三人开始起身找遥控器，最终是薛步采在角落的地板上找到的。她站在角落，用遥控器打开了空调后，便将它放回原处，三步并作两步返回椅子。",
+      ]},
+      { h:"进行时", paras:[
+        "1 点45 分，DM 从隔间出来了。他说游戏开始前需要大家保持手机屏幕打开，然后上交给他。我有点诧异，但转念猜测应该是这次测试才新设计的游戏环节吧！所以没有多过问，直接上交了手机。",
+        "收完手机后，他回了一趟隔间，然后拿着个人剧本与一把椅子出来，补了吴恭德旁边的空位，说如果有物品可以放椅子上。不过我们都没有东西要放上去。我们按照正常的游戏流程分派个人剧本，选完后我们开始安静浏览第一幕，期间他便坐在正对着我的DM 位置。",
+        "看本过程中，我偶尔会用黑笔在草稿纸上涂涂写写，毕竟玩剧本杀就是要积极做笔记的。",
+        "大家都读完后，我们就开始破冰游戏。",
+        "顾名思义，破冰游戏就是为了让彼此不太熟悉的玩家之间产生点气氛嘛，这个也不例外，是一个有身体接触但比较和谐的游戏，但和其他不一样的点在于，它需要在暗黑的环境下进行。",
+        "所以当时讲解完规则后，DM 就用遥控关了灯。当灯与门都被关上后，大房里非常暗黑，几乎是伸手不见五指。而我们就在看不见彼此的漆黑环境下，糊里糊涂进行着破冰。",
+        "游戏需要每个人用右手握着右边那个人的左手，通过手部的联结来围成一个圈。DM 说，不需要十指相扣，也不需要握手心，如果觉得尴尬的话，握住对方的一个小指头就可以了。",
+        "所以我就握住了薛步采的左手。握哪儿？警察先生，我必须得说您这问题属实是有点冒犯到鄙人了。我作为一名尊重女性的男性，怎么能趁剧本杀游戏动一些坏念头？男女授受不亲，在与女性身体接触这方面我可是会特别注意！我自然只是遵守最低限度，握着薛女士的尾指。而吴赫德先生同样也只是握着我的尾指。",
+        "游戏在下午2 点就结束了。十分幸运，获得第一名的是我。灯重新打开。按照规则，前两名可以按顺序单独跟DM 去隔间秘密挑选之后会用到的道具。而第一名还可以主动挑选一名队友，对方无法拒绝，且挑选后在全场游戏中就是固定的，最终共同承担胜负。而剩下的两人自然就是一队了。但只要第一名不主动说，挑选队友的结果其他人是不知道的，按照流程得等到“封闭感官”环节之后，DM 才会公布。我习惯转笔，当我跟随DM 掀开布帘，打开门走进隔间，这过程我的右手还",
+        "一直转着笔。同时我注意到薛步采还坐在位置上，好像专注于阅读个人剧本，而吴恭德则跟在史贵物的身后离开了大房，说要去洗手间。隔间很小，进去后我在DM 摆出来的几样道具中随便拿了一个，反正我也不知道有啥作用。紧接着，他就问我要选择和谁组队。很多人之所以愿意和我玩剧本杀，就是因为我会全情投入在游戏里。我来玩这个本的目的就是为了赢，所以当时我果断选择了在第一幕的剧情里明显最强的史贵物成为队友。这个选择我并没有告诉任何人。",
+        "你问我有没有注意到盒子？什么盒子？哦，后来被砸烂在案发现场的那个，我完全没注意到，不晓得是不是当时就已经烂掉……我在隔间时间不长，大概就一分钟，随后就离开了。掀开布帘，我看见薛步采还坐在位置上专注地阅读。我没有打扰她。这时我发现自己右手手指竟然沾了大量墨水，心想是刚才用的笔的笔芯爆掉了，不停转动的时候也溅出不少，便赶紧拿了一张纸巾擦掉。您问我从沾上墨水之后到擦掉墨水，这中间右手碰过什么？我很确定碰过的就是笔、薛女士的尾指、布帘，没了。道具我是用左手拿的。随后我不想太快坐下，便去到走廊来回散步，当走到能看见杂物房的位置时，我看到了DM 的身影，那瞬间他刚好从面对的杂物房转身，往隔间方向走去了。我想一个人静静，所以没跟过去，只是下意识转过身子往大房方向走去。2点06 分，史贵物就回来了，他的身后跟着吴恭德。",
+        "当时史贵物鼻青脸肿，吓了我一跳！我问怎么回事，他说洗手间刚清洁完，路特别滑，他不小心摔了个大跤，先撞到洗手台之后又撞到地板上。唉，这可真可怜。我和他们一同回到大房。这时获得第二名的薛步采说她不到三十秒前刚刚在DM 那里拿了道具。我看见原本挂在隔间门前的布帘此时不见了。2 点08 分，我尿意袭来，对其他人说“我得去一趟洗手间”。史贵物提醒我要注意安全。不得不说地确实很滑！在小心翼翼的同时速战速决，三分钟我就回去了，尽量不耽搁大家的时间嘛。",
+        "我们开始按照DM 在破冰游戏结束后留下的“游戏流程”自助进行接下来的环节——是这样的，按照“游戏流程”上的说明，接下来会有部分内容原本便是由我们自己进行，不需要DM。",
+        "你问我是否从此刻起DM 就没再出现过？是的，准确来说，我就再也没听到他的任何动静，当时我一直以为他是在隔间里休息，但如今想来可能他那会儿就已经死了……",
+        "而在自助开本的过程中没什么值得留意的，倒是史贵物好像记忆力不是很好的样子，我随口调侃说他得补一补了，这话好像冒犯到他，他有点生气，我连忙道歉。哦对了！2 点16 分的时候，吴恭德说他也突然尿急，忍不住，需要上一趟洗手间。我发现这时离他第一次去洗手间才过了十五分钟。但人有三急，互相理解和体谅嘛，所以大家也都暂停了一下，还好没等太久，2 点20 分他就回来。",
+        "回来后，我们到了自助开本的最后一个环节，也就是“封闭感官”。顾名思义，我们需要利用DM 在游戏开场留下的道具，堵着鼻孔封闭嗅觉，戴上耳机封闭听觉，同时手也必须自觉放在膝盖上不能乱摸，并且用遥控器把灯和空调全部关掉，确保无任何光亮。",
+        "你知道的，在大房里把灯都关掉，和封闭视觉没什么区别。",
+        "这一幕，我们需要仔细聆听耳机里播放的内容，每个人都是不一样的。您说从没想过剧本杀玩法这么丰富？您问我觉得这个本如何？唉，警察先生，说实话以我目前的体验，这个本不适合新手，可是真的好玩，我强烈推荐呢。当然啦，我觉得好玩并不是因为我带领全队靠逻辑推理破解了中间的那几起案件。实际上，我觉得以“自己能不能推出来”来定义一个本的好坏是不应该的。哪怕我推不出来，但只要作者的构思有足够的闪光点，那我肯定也是相当佩服的。啊不好意思，一不小心就离题了。在封闭感官的情况下，我开始沉浸在耳机的录音里。虽然我不能确定其他人的动静，但我可以确保直到环节结束，期间大房里没有冒出半点光亮，不然一定会相当显眼。后来大家都听完了——说实话，聆听录音这环节有点拖沓了，让人昏昏欲睡，希望作者在这次测试之后可以改，哦对，已经没法改了，好吧我不再多嘴了——便自觉摘下耳机，然后在一片漆黑中把听到的内容互相分享。分享完毕后，史贵物按照写好的流程，拿起关灯时被放在桌子上的遥控器，重新开了灯。时间此刻是下午3 点整。",
+        "结果你猜怎么着？我发现薛步采竟然坐在了吴恭德的旁边——也就是史贵物的对面！大家都很吃惊。史贵物开始怀疑她就是游戏里的“碟中谍”。毕竟只有“碟中谍”才有可能无端端去坐别的位置，为了明示真正同阵营的人自己在这个环节中秘密行动过！",
+        "“碟中谍”可以在“封闭感官”环节或者下一环节中秘密提前去找DM 拿新武器。",
+        "按照流程，自助开本的阶段到这里就结束了，接下来我们只需要坐在位置上等待DM 登场引领我们继续下一步。",
+        "然而我们四个人等啊等，始终都没见DM 现身。无论我们怎么喊，隔间里头都完全没有回应。我们越来越不安，于是一同打开隔间的门，结果就是你们看到的那样……",
+      ]},
+      { h:"谋杀后", paras:[
+        "虽然说我们玩的是过家家，但面对真正的凶杀案时，还是很机灵的反应过来需要保护现场，所以我们四个人都没敢贸然踏进隔间。可是为了报警最终还是决定由店长史贵物小心翼翼地走进去把自己的手机拿出来。报完警之后，我们心神未定，都逗留在大房里头，直到你们的到来。噢对了，这期间我还注意到吴恭德走路变得一瘸一拐了，可他在第一次出门上洗手间的时候还是健步如飞的。他啥时受伤了？我还真不确定，这你得问他。",
+      ]},    ]
+  },
+
+};
+const INTRO_TEXT = [
+  "2023年1月某日，“旋梦阁”剧本杀店内。",
+  "一位自称苟咚溪的作者，在此租用大房，对其新作《为了忘却的纪念》进行正式发行前的最后一次线下测试。他在玩家微信群里摇来了四位素未谋面的玩家：纯情女生薛步采、豪爽大叔史贵物、朴实青年吴恭德、优雅绅士郝庄璧。",
+  "这本是一场寻常的测本局。下午1点45分，DM 苟咚溪从隔间走出，要求所有人上交手机；随后破冰、选道具、自助开本……一切按流程进行。",
+  "然而下午3点整，当玩家们重新开灯，等待 DM 引导下一环节时，隔间内却再无回应。众人推开门——苟咚溪仰面倒在隔间地板上，心脏处插着一把带血的匕首。",
+  "现场没有第四者出入，手机早已被 DM 收走。四位玩家，即是四位嫌疑人。",
+  "各位预备警员，现在请入座圆桌，从你们各自的剧本与现场线索出发，还原这场“陌生人”之间的命案真相。"
+];
+
+// 第一轮复盘：表面凶手
+const ROUND1_REVEAL = {
+  title:"第一轮复盘 · 表面上的凶手",
+  paras:[
+    "第一轮线索指向的“表面凶手”，是豪爽大叔——吴恭德。",
+    "推理链：吴恭德在2点16分以“尿急”为由第二次离开大房，声称2点20分返回。但根据男厕所痕迹，当天早上清洁后男厕只有一处小便池被使用——即他第一次上厕所时。也就是说，他第二次根本没有去厕所，而是利用这四分钟绕到了杂物房方向。",
+    "走廊地上的烧仙草奶茶由杂物房内被推向走廊，说明有人在杂物房门口活动。从杂物房到隔间仅10秒。吴恭德有“即使没进前两名也可随时找DM拿杀手锏”的特殊优势，而杀手锏盒子正是在这场冲突中被砸破的。他的脚伤“第二次上厕所才扭到”的说法与厕所痕迹矛盾——实际上他是在隔间的争斗中受的伤，之后伪装成扭脚，目的是解释自己为何跛行。",
+    "匕首用布帘包裹以防留指纹，布帘被收走后藏于杂物房。表面来看，吴恭德既有动机（争夺杀手锏道具）、又有时间窗、还有机会进入隔间。",
+    "然而——这只是第一层真相。死者为何要设计“上交手机”“砸盒子”这些本不存在于真实组织者手册的环节？洒掉的奶茶、坏掉的笔、墨水痕迹……这些线索在第二轮背景调查后，将指向完全不同的方向。"
+  ]
+};
+
+// 第二轮复盘：背景真相
+const ROUND2_REVEAL = {
+  title:"第二轮复盘 · 人物关系的真相",
+  paras:[
+    "背景调查揭开了四人与死者苟咚溪（笔名“比奇”）之间的恩怨：",
+    "苟咚溪曾花5888元报名史贵物（笔名“活着就是为了樱岛麻衣”）的剧本杀教学班。史贵物凭硬核本《消失的牠》名声大噪，对外宣称“一人独揽”。但苟咚溪电脑里那份2022年初的《消失的牠》压缩包显示：史贵物的成名作，其硬核与故事背景实则大量取自苟咚溪的投稿——史贵物窃取了弟子的创意，反过来邮件痛骂弟子“垃圾”。",
+    "苟咚溪隐忍多年，一边收集史贵物抄袭的证据（未曝光压缩包、发行举报记录），一边秘密联系美国作家温拿·卢瑟取得《今晚干杯》的改编授权——他把这称作“报复史贵物的杀手锏”。备忘录里写着“但还有一件事必须得做，不然就会变成自取其辱”。",
+    "薛步采是怀才不遇的前DM，匿名给两个本打一分差评，日记里满是“凭什么他们那么高分”的嫉恨；郝庄璧风评不佳，对薛步采图谋不轨，曾用20块收买史贵物删除差评；吴恭德的“隐秘的角落”靠妻子刘贝蒂与史贵物的暧昧交易才拿到《消失的牠》授权，事后离婚，店却一次都没开过。",
+    "而苟咚溪这次不只是来测本——他设计了一场局，要在这场测试里让史贵物身败名裂。可惜，局中局外，有人比他先动了手。"
+  ]
+};
+
+// 最终复盘：真凶
+const FINAL_REVEAL = {
+  title:"真相大白 · 真凶揭晓",
+  answer:"真凶是——优雅绅士 郝庄璧",
+  paras:[
+    "第三轮线索揭开了“旋梦阁”最关键的机关：大房所属的那个“圈”可以无声旋转。每按一次按钮转90度，耗时一分钟。按钮使用记录为：第一次（隔间方向）→6分钟后第二次（走廊方向）→1分30秒后第三次（隔间方向）→1秒后第四次（隔间方向）。",
+    "【旋转大房的人，是死者苟咚溪本人】。苟咚溪以“借场地测本”为名，真实目的是趁“封闭感官”环节旋转大房封门，自己潜入杂物房格式化史贵物的电脑——删除两人之间的聊天记录与投稿证据，防止史贵物抄袭《消失的牠》一事败露。他第一次旋转90度封门，完成行动后想转回，却不慎多转了90度（大房变为180度）；此时薛步采回房，在黑暗中凭印象坐回了错误的位置。苟咚溪察觉后慌忙连按两次，将大房转回正确位置——这就是第三、四次间隔仅1秒的原因。",
+    "【奶茶是苟咚溪自己撞倒的】。苟咚溪从大房经走廊前往杂物房时，在黑暗中不小心撞倒了那杯烧仙草奶茶。奶茶洒落的区域从走廊移向杂物房内，证明撞倒者必定出入过杂物房——而这个人正是苟咚溪本人。",
+    "【布帘一直在隔间，从未进入杂物房】。苟咚溪拆掉布帘后，按史贵物的要求叠好前往杂物房，却发现杂物房门被史贵物上了锁，只能掉头返回隔间，将布帘放在隔间茶几上。因此凶手在行凶时直接从隔间取走布帘包裹匕首，无需进入杂物房。",
+    "【砸烂杀手锏盒子的是郝庄璧】。郝庄璧是天眼玩家——早在2023年1月1日就参加过苟咚溪的线上测试，知道全流程。第一轮挑选道具时（约2点01分），他作为第一名进入隔间，凭借天眼知识直接砸烂盒子获取杀手锏道具。苟咚溪因此当场看穿他是天眼玩家。",
+    "【墨水真相：郝庄璧撒了谎】。郝庄璧称破冰环节只握了薛步采的尾指，但实际上在黑暗中握住了她的整只手——薛步采为了隐瞒自己与吴恭德的暧昧关系（一脚两船），也配合撒谎说只被握了尾指。因此薛步采左手其他手指上的墨水，是郝庄璧握她整只手时直接沾上的，并非触碰布帘。",
+    "【动机】。“封闭感官”环节尾声，郝庄璧偷偷溜往隔间，想找苟咚溪拿后面环节需要的新武器，却被苟咚溪当场质问：“你是天眼玩家吧？”苟咚溪决定稍后在众人面前曝光郝庄璧的天眼行为。郝庄璧是个极好面子的人——他好不容易在剧本杀圈混得风生水起，又即将把薛步采追到手，怎能容许苟咚溪毁了他的形象与前途？于是起了杀心，用布帘裹着隔间内的匕首刺向苟咚溪。",
+    "【排除法】。薛步采不是凶手——她并非“碟中谍”，坐错位置纯粹是大房旋转所致；吴恭德不是凶手——他的脚在洗手间与史贵物互殴时扭伤，医生证明无法跑跳，而凶手必须跑跳越过奶茶区域；史贵物不是凶手——电脑被格式化后他当场崩溃，若他是凶手必会极力掩饰，且发现尸体后他也没有回杂物房检查电脑。",
+    "【吴恭德与史贵物的伤】。两人鼻青脸肿与脚伤并非“地滑摔倒”，而是在洗手间因史贵物将《消失的牠》授权给吴恭德的妻子刘贝蒂（以肉体换授权）一事发生肢体冲突。两人都因各自的糗事（史贵物授权黑幕、吴恭德被戴绿帽）而隐瞒了互殴真相。",
+    "凶手唯一，无人包庇。真凶，正是这位风度翩翩、连笔芯都会爆掉的优雅绅士——郝庄璧。"
+  ]
+};
+
+/* ==================== 全局状态 ==================== */
+const state = {
+  isDM:false,
+  playerId: localStorage.getItem('stranger_pid') || ('p_' + Math.random().toString(36).slice(2,10)),
+  myNickname:'',
+  roomNumber:'',
+  myRole:null,          // 角色 key：xuebucai/shiguiwu/wugongde/haozhuangbi
+  stageIndex:0,
+  players:{},           // playerId -> {id,nickname,role,online,seat,lastSeen}
+  bgm:{ trackIndex:0, playing:false, volume:0.6, lastTime:0 },
+  votes:{ round1:{}, final:{} },
+  voteRevealed:{ round1:false, final:false },
+  publishedGuide:[],
+  floorPlanPublished:false,
+  whiteboard:{},            // 玩家白板：rowIdx -> text
+  wbShowAnswer:false,       // DM本地：是否显示标准答案
+  connected:false,
+  startTime:Date.now(),
+};
+localStorage.setItem('stranger_pid', state.playerId);
+
+let socket = null;
+const BACKEND_URL = 'https://murder-mystery-backend-pxid.onrender.com';
+let dmRegistered = false;     // DM 是否已完成 create_room / reconnect_dm
+let playerJoined = false;     // 玩家是否已成功 join_room
+let clockTimer = null;
+let hbTimer = null;
+
+const $ = (id)=>document.getElementById(id);
+
+/* ==================== 工具 ==================== */
+function toast(msg, ms=2200){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._tm); t._tm = setTimeout(()=>t.classList.remove('show'), ms);
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function genRoomNum(){
+  let n=''; for(let i=0;i<6;i++) n += Math.floor(Math.random()*10);
+  return n;
+}
+
+/* ==================== 音频引擎 ==================== */
+const audio = {
+  bgm: new Audio(),
+  sfx: {},
+  volume: 0.6,
+  init(){
+    this.bgm.loop = true;
+    this.bgm.preload = 'auto';
+    this.bgm.src = BGM_TRACKS[0].url;
+    for(const k in SFX){
+      const a = new Audio(SFX[k]);
+      a.preload = 'auto';
+      this.sfx[k] = a;
+    }
+    this.bgm.volume = this.volume;
+  },
+  setVolume(v){
+    this.volume = v;
+    this.bgm.volume = v;
+    for(const k in this.sfx) this.sfx[k].volume = Math.min(1, v+0.15);
+  },
+  playBgmTrack(i, playing){
+    this.bgm.src = BGM_TRACKS[i].url;
+    this.bgm.currentTime = 0;
+    if(playing){ this.bgm.play().catch(()=>{}); }
+  },
+  play(){ this.bgm.play().catch(()=>{}); },
+  pause(){ this.bgm.pause(); },
+  seek(t){ try{ this.bgm.currentTime = t; }catch(e){} },
+  sfxKeys:{},
+  playSfx(name){
+    let url = SFX[name];
+    if(name==='click' && this._clickBroken){ url = SFX_FALLBACK_CLICK; }
+    const a = new Audio(url);
+    a.volume = Math.min(1, this.volume+0.2);
+    a.play().catch(()=>{
+      if(name==='click' && !this._clickBroken){
+        this._clickBroken = true;
+        const b = new Audio(SFX_FALLBACK_CLICK);
+        b.volume = Math.min(1, this.volume+0.2);
+        b.play().catch(()=>{});
+      }
+    });
+  }
+};
+
+/* ==================== 入口 / 角色选择 ==================== */
+let entryMode = 'player';
+function pickEntryRole(m){
+  entryMode = m;
+  $('tabPlayer').classList.toggle('active', m==='player');
+  $('tabDM').classList.toggle('active', m==='dm');
+  $('roomRow').classList.toggle('hidden', m==='dm');
+  $('passwordRow').classList.toggle('hidden', m!=='dm');
+  $('entryBtn').textContent = m==='dm' ? '验证密码并创建房间' : '加入房间';
+}
+
+function doEntry(){
+  playSfxSafe('click');
+  if(entryMode === 'dm'){
+    const pwd = $('passwordInput').value.trim();
+    if(!pwd){ toast('请输入主持人密码'); return; }
+    // 密码不再前端校验，提交给后端 create_room 事件验证
+    state.myNickname = '主持人';
+    state.isDM = true;
+    startHost(pwd);
+  } else {
+    state.myNickname = '玩家';
+    state.isDM = false;
+    const room = $('roomInput').value.trim();
+    if(!/^\d{6}$/.test(room)){ toast('请输入6位数字房间号'); return; }
+    state.roomNumber = room;
+    startPlayer();
+  }
+}
+function playSfxSafe(name){ try{ audio.playSfx(name); }catch(e){} }
+/* ==================== 断线重连 / Session 持久化 ==================== */
+const DM_SESSION_KEY = 'stranger_dm_session';
+const PLAYER_ROOM_KEY = 'stranger_player_room';
+let playerReconnectTimer = null;
+
+function saveDmSession(){
+  if(!state.isDM) return;
+  try{
+    localStorage.setItem(DM_SESSION_KEY, JSON.stringify({
+      roomNumber: state.roomNumber,
+      dmPlayerId: state.playerId,
+      stageIndex: state.stageIndex,
+      players: state.players,
+      publishedGuide: state.publishedGuide,
+      floorPlanPublished: state.floorPlanPublished,
+      cluesRevealed: state.cluesRevealed,
+      votes: state.votes,
+      voteRevealed: state.voteRevealed,
+      bgm: state.bgm,
+      chat: state.chat,
+      timestamp: Date.now()
+    }));
+  }catch(e){}
+}
+function loadDmSession(){ try{ var r=localStorage.getItem(DM_SESSION_KEY); return r?JSON.parse(r):null; }catch(e){ return null; } }
+function clearDmSession(){ try{ localStorage.removeItem(DM_SESSION_KEY); }catch(e){} }
+function savePlayerRoom(room){ try{ localStorage.setItem(PLAYER_ROOM_KEY, room); }catch(e){} }
+function loadPlayerRoom(){ try{ return localStorage.getItem(PLAYER_ROOM_KEY); }catch(e){ return null; } }
+function clearPlayerRoom(){ try{ localStorage.removeItem(PLAYER_ROOM_KEY); }catch(e){} }
+
+function checkDmSessionOnLoad(){
+  var s = loadDmSession();
+  if(s && s.roomNumber){
+    var st = STAGES[s.stageIndex] || {name:'未知'};
+    var pc = Object.keys(s.players || {}).length;
+    $('dmRecoverInfo').innerHTML = '房间号：<b style="color:#d4a843;font-size:20px;">' + s.roomNumber + '</b><br>当前阶段：' + st.name + '<br>玩家数：' + pc + ' 人<br><br>恢复后将使用相同房间号重建连接，玩家可自动重连。';
+    $('dmRecoverModal').style.display = 'flex';
+  }
+}
+function recoverDmSession(){
+  var s = loadDmSession();
+  if(!s || !s.roomNumber) return;
+  $('dmRecoverModal').style.display = 'none';
+  state.isDM = true;
+  state.roomNumber = s.roomNumber;
+  if(s.dmPlayerId) state.playerId = s.dmPlayerId;
+  state.stageIndex = s.stageIndex || 0;
+  state.players = s.players || {};
+  state.publishedGuide = s.publishedGuide || [];
+  state.floorPlanPublished = s.floorPlanPublished || false;
+  state.cluesRevealed = s.cluesRevealed || {};
+  state.votes = s.votes || {};
+  state.voteRevealed = s.voteRevealed || {};
+  state.bgm = s.bgm || state.bgm;
+  state.chat = s.chat || [];
+  state.myNickname = '主持人';
+  state.players[state.playerId] = { id:state.playerId, nickname:'主持人', role:null, online:true, isDM:true, seat:'dm', lastSeen:Date.now() };
+  $('entryScreen').style.display = 'none';
+  showGameScreen();
+  $('sbRole').textContent = 'DM · 主持人';
+  $('sbRoom').textContent = '房间 ' + state.roomNumber;
+  $('roomDisplay').style.display = 'block';
+  $('roomNumText').textContent = state.roomNumber;
+  $('dmPanel').classList.remove('hidden');
+  renderStageBar(); renderSeats(); renderDmPlayerList(); renderDmScripts(); renderContentPanel();
+  ensureSocket();
+  socket.emit('reconnect_dm', { roomNumber: state.roomNumber, dmPlayerId: state.playerId, gameId:'stranger' }, function(ack){
+    if(!ack || !ack.success){ toast('恢复失败：房间可能已不存在', 4000); clearDmSession(); return; }
+    dmRegistered = true;
+    if(ack.players) state.players = Object.assign(state.players, ack.players);
+    if(ack.fullState) handleHostData(ack.fullState);
+    toast('房间已恢复：' + state.roomNumber, 4000);
+    playSfxSafe('door');
+    saveDmSession();
+    broadcastState();
+  });
+}
+function discardDmSession(){ clearDmSession(); $('dmRecoverModal').style.display = 'none'; }
+
+function endDmRoom(){
+  if(!confirm('确定要结束当前房间吗？所有玩家将被断开，房间记录将被清除。')) return;
+  if(socket){ try{ socket.emit('end_room'); }catch(e){} }
+  if(socket){ try{ socket.disconnect(); }catch(e){} }
+  socket = null;
+  dmRegistered = false;
+  clearDmSession();
+  state.isDM = false; state.roomNumber = ''; state.players = {}; state.stageIndex = 0;
+  state.publishedGuide = []; state.floorPlanPublished = false; state.votes = {}; state.voteRevealed = {}; state.chat = [];
+  $('gameScreen').style.display = 'none';
+  $('entryScreen').style.display = 'flex';
+  $('dmPanel').classList.add('hidden');
+  $('roomDisplay').style.display = 'none';
+  toast('房间已结束');
+}
+
+// Socket.IO 自带断线重连；重连成功后由 socket.on('connect') 自动重新 join_room。
+// 保留函数名以兼容旧调用点，此处为空实现。
+function startPlayerAutoReconnect(){
+  // no-op: reconnection handled by Socket.IO
+}
+
+/* ==================== Host (DM) 端 ==================== */
+function startHost(password){
+  ensureSocket();
+  socket.emit('create_room', { gameId:'stranger', password: password }, function(ack){
+    if(!ack || !ack.success){
+      toast('密码错误或创建房间失败', 3500);
+      return;
+    }
+    state.roomNumber = ack.roomNumber;
+    state.playerId = ack.dmPlayerId || state.playerId;
+    dmRegistered = true;
+
+    $('entryScreen').style.display = 'none';
+    showGameScreen();
+    $('sbRole').textContent = 'DM · 主持人';
+    $('sbRoom').textContent = '房间 ' + state.roomNumber;
+    $('roomDisplay').style.display = 'block';
+    $('roomNumText').textContent = state.roomNumber;
+    $('dmPanel').classList.remove('hidden');
+
+    // DM 自己入座 DM 位
+    state.players[state.playerId] = {
+      id:state.playerId, nickname:state.myNickname, role:null, online:true, isDM:true, seat:'dm', lastSeen:Date.now()
+    };
+    renderSeats();
+    renderDmPlayerList();
+    renderDmScripts();
+    renderContentPanel();
+
+    toast('房间已创建，房间号：' + state.roomNumber, 4000);
+    playSfxSafe('door');
+    saveDmSession();
+    // 把初始完整状态发给服务器缓存，供后续新玩家 join_room 时下发
+    broadcastState();
+
+    // 心跳：每5秒 ping，15秒无 pong 标记离线（Socket.IO 已有内置心跳，这里作为业务层在线检测）
+    if(hbTimer) clearInterval(hbTimer);
+    hbTimer = setInterval(()=>{
+      const now = Date.now();
+      for(const pid in state.players){
+        if(pid === state.playerId) continue;
+        if(now - (state.players[pid].lastSeen||now) > 15000){
+          if(state.players[pid].online){
+            state.players[pid].online = false;
+            renderSeats();
+            broadcastState();
+          }
+        }
+      }
+      broadcastToAll({type:'ping', t:now});
+    }, 5000);
+  });
+}
+
+function markPlayerOffline(pid){
+  if(pid && state.players[pid]){
+    state.players[pid].online = false;
+    renderSeats();
+    broadcastState();
+  }
+}
+
+// 玩家加入房间（服务器 player_joined 事件到达 DM 时调用）
+function onPlayerJoined(info){
+  const pid = info.playerId;
+  const existing = state.players[pid];
+  if(existing){
+    existing.online = true;
+    existing.nickname = info.nickname;
+    existing.lastSeen = Date.now();
+  } else {
+    // 分配一个空座（角色由 DM 手动分配）
+    const usedSeats = new Set(Object.values(state.players).map(p=>p.seat));
+    const freeSeat = SEAT_ORDER.find(s=>!usedSeats.has(s));
+    state.players[pid] = {
+      id:pid, nickname:info.nickname, role:null,
+      online:true, seat:freeSeat, isDM:false, lastSeen:Date.now()
+    };
+    playSfxSafe('notify');
+    toast('一位玩家加入了房间，请在控制台分配角色');
+  }
+  renderSeats();
+  renderDmPlayerList();
+  broadcastState();
+}
+
+// DM 收到来自某个玩家的游戏消息（由服务器 game_msg 中继，{from, data}）
+function handleHostMsg(pid, data){
+  switch(data.type){
+    case 'pong': {
+      if(pid && state.players[pid]){
+        state.players[pid].lastSeen = Date.now();
+        if(!state.players[pid].online){
+          state.players[pid].online = true;
+          renderSeats();
+          broadcastState();
+        }
+      }
+      break;
+    }
+    case 'vote': {
+      if(!state.votes[data.round]) state.votes[data.round] = {};
+      state.votes[data.round][pid] = data.candidate;
+      renderDmVoteView();
+      broadcastToAll({type:'votes', votes:state.votes});
+      break;
+    }
+    case 'chat': {
+      const sp = state.players[pid];
+      const fromName = (sp && sp.role) ? CHARACTERS[sp.role].realName : (sp?.nickname || '玩家');
+      broadcastToAll({type:'chat', from:fromName, text:data.text});
+      break;
+    }
+    case 'wbEdit': {
+      state.whiteboard[data.row] = data.value;
+      broadcastState();
+      break;
+    }
+  }
+}
+
+function buildFullState(){
+  return {
+    type:'fullState',
+    stageIndex: state.stageIndex,
+    players: state.players,
+    bgm: { trackIndex:state.bgm.trackIndex, playing:!audio.bgm.paused, volume:state.bgm.volume, lastTime:audio.bgm.currentTime },
+    votes: state.votes,
+    voteRevealed: state.voteRevealed,
+    publishedGuide: state.publishedGuide,
+    floorPlanPublished: state.floorPlanPublished,
+    whiteboard: state.whiteboard,
+  };
+}
+
+// 广播完整状态：服务器缓存并通过 state_update 广播给所有玩家（新玩家 join 时也会拿到缓存）
+function broadcastState(){
+  const msg = { type:'state', stageIndex:state.stageIndex, players:state.players, votes:state.votes, voteRevealed:state.voteRevealed, publishedGuide:state.publishedGuide, floorPlanPublished:state.floorPlanPublished, whiteboard:state.whiteboard,
+    bgm:{ trackIndex:state.bgm.trackIndex, playing:!audio.bgm.paused, volume:state.bgm.volume, lastTime:audio.bgm.currentTime } };
+  if(socket){ try{ socket.emit('state_update', msg); }catch(e){} }
+  saveDmSession();
+}
+function broadcastToAll(msg){
+  // DM 发出的 game_msg，服务器自动广播给所有玩家
+  if(socket){ try{ socket.emit('game_msg', msg); }catch(e){} }
+  saveDmSession();
+}
+
+/* ==================== Player 端 ==================== */
+function startPlayer(){
+  $('entryScreen').style.display = 'none';
+  showGameScreen();
+  savePlayerRoom(state.roomNumber);
+  $('sbRoom').textContent = '房间 ' + state.roomNumber;
+  $('sbRole').textContent = '玩家 · 等待分配角色';
+  ensureSocket();
+  connectToHost();
+}
+
+function connectToHost(){
+  // 通过 join_room 加入房间；ack 里携带 players 与 fullState
+  socket.emit('join_room', { gameId:'stranger', roomNumber: state.roomNumber, playerId: state.playerId, nickname: state.myNickname }, function(ack){
+    if(!ack || !ack.success){
+      toast('加入失败：房间不存在或主持人未创建，请检查房间号', 3500);
+      showHostDown(true);
+      return;
+    }
+    playerJoined = true;
+    if(ack.players) state.players = ack.players;
+    if(ack.fullState) handleHostData(ack.fullState);
+    state.connected = true;
+    showHostDown(false);
+    // 业务层心跳回应（Socket.IO 内置心跳之外的额外保险）
+    if(hbTimer) clearInterval(hbTimer);
+    hbTimer = setInterval(()=>{
+      if(socket && socket.connected){
+        try{ socket.emit('game_msg', {type:'pong'}); }catch(e){}
+      }
+    }, 5000);
+  });
+}
+
+function showHostDown(show){
+  $('hostDownMask').style.display = show ? 'flex' : 'none';
+}
+
+// 建立（或重连）到后端的 Socket.IO 连接，注册所有服务器事件
+function ensureSocket(){
+  if(socket) return socket;
+  socket = io(BACKEND_URL, { autoConnect:true, reconnection:true, reconnectionDelay:1000, reconnectionDelayMax:5000 });
+
+  socket.on('connect', ()=>{
+    if(state.isDM && dmRegistered){
+      // DM 断线重连后重新注册到房间
+      socket.emit('reconnect_dm', { roomNumber: state.roomNumber, dmPlayerId: state.playerId, gameId:'stranger' });
+    } else if(!state.isDM && playerJoined && state.roomNumber){
+      // 玩家断线重连后重新加入房间
+      connectToHost();
+    }
+  });
+  socket.on('disconnect', ()=>{
+    state.connected = false;
+    if(!state.isDM) showHostDown(true);
+  });
+  socket.on('connect_error', ()=>{
+    if(!state.isDM) showHostDown(true);
+  });
+
+  // 游戏消息中继：DM 收到玩家消息，玩家收到 DM 广播的消息
+  socket.on('game_msg', ({from, data})=>{
+    if(state.isDM){ handleHostMsg(from, data); }
+    else { handleHostData(data); }
+  });
+  // 状态广播（DM 推来的完整状态）
+  socket.on('state_update', (st)=>{
+    if(!state.isDM) handleHostData(st);
+  });
+  // 玩家加入 / 离开（DM 侧）
+  socket.on('player_joined', (info)=>{ if(state.isDM) onPlayerJoined(info); });
+  socket.on('player_left', (info)=>{ if(state.isDM) markPlayerOffline(info && info.playerId); });
+  socket.on('player_status', (msg)=>{
+    if(!state.isDM || !msg || !msg.players) return;
+    const onlineMap = {};
+    msg.players.forEach(p=>{ onlineMap[p.id || p.playerId] = p.online; });
+    let changed = false;
+    for(const pid in state.players){
+      if(pid === state.playerId) continue;
+      const want = onlineMap[pid];
+      if(want !== undefined && state.players[pid].online !== want){ state.players[pid].online = want; changed = true; }
+    }
+    if(changed){ renderSeats(); broadcastState(); }
+  });
+  // DM 在线 / 离线通知（玩家侧）
+  socket.on('dm_offline', ()=>{ if(!state.isDM) showHostDown(true); });
+  socket.on('dm_online', ()=>{ if(!state.isDM) showHostDown(false); });
+  // 被踢 / 房间结束
+  socket.on('kicked', ()=>{
+    if(state.isDM) return;
+    clearPlayerRoom();
+    alert('你已被主持人移出房间');
+    location.reload();
+  });
+  socket.on('room_ended', ()=>{
+    if(state.isDM) return;
+    clearPlayerRoom();
+    alert('主持人已结束房间');
+    location.reload();
+  });
+  return socket;
+}
+
+function handleHostData(data){
+  switch(data.type){
+    case 'fullState':
+      applyState(data, true);
+      showHostDown(false);
+      break;
+    case 'state':
+      applyState(data, false);
+      showHostDown(false);
+      break;
+    case 'votes':
+      state.votes = data.votes;
+      renderContentPanel();
+      break;
+    case 'chat':
+      appendChat(data.from, data.text, false);
+      playSfxSafe('notify');
+      break;
+    case 'ping':
+      // 无需回应，我们用 pong 定时器
+      break;
+    case 'bgm':
+      applyBgmState(data.bgm);
+      break;
+    case 'kicked':
+      clearPlayerRoom();
+      alert('你已被主持人移出房间');
+      location.reload();
+      break;
+    case 'room_ended':
+      clearPlayerRoom();
+      alert('主持人已结束房间');
+      location.reload();
+      break;
+  }
+}
+
+function applyState(data, isFull){
+  state.stageIndex = data.stageIndex;
+  state.players = data.players;
+  state.votes = data.votes || state.votes;
+  state.voteRevealed = data.voteRevealed || state.voteRevealed;
+  if(data.publishedGuide !== undefined) state.publishedGuide = data.publishedGuide;
+  if(data.floorPlanPublished !== undefined) state.floorPlanPublished = data.floorPlanPublished;
+  if(data.whiteboard !== undefined) state.whiteboard = data.whiteboard;
+  // 找出自己的角色
+  const me = state.players[state.playerId];
+  if(me){ state.myRole = me.role; }
+  if(data.bgm) applyBgmState(data.bgm);
+  // 更新顶部角色显示
+  if(!state.isDM){
+    const me = state.players[state.playerId];
+    if(me && me.role){
+      $('sbRole').textContent = CHARACTERS[me.role].code + ' · ' + CHARACTERS[me.role].realName;
+    } else {
+      $('sbRole').textContent = '玩家 · 等待分配角色';
+    }
+  }
+  // 平面图按钮可见性：DM始终可见，玩家仅在发布后可见
+  const fpBtn = $('topFpBtn');
+  if(fpBtn){
+    fpBtn.style.display = (state.isDM || state.floorPlanPublished) ? '' : 'none';
+  }
+  // 我的剧本按钮：仅玩家可见（DM不需要），任何阶段都可点击
+  const scriptBtn = $('topScriptBtn');
+  if(scriptBtn){
+    scriptBtn.style.display = state.isDM ? 'none' : '';
+  }
+  // DM话术面板仅DM可见
+  const dsp = $('dmScriptsPanel');
+  if(dsp){ dsp.classList.toggle('hidden', !state.isDM); }
+  // DM面板平面图按钮文字
+  const dmFpBtn = $('dmFpBtn');
+  if(dmFpBtn){
+    dmFpBtn.textContent = state.floorPlanPublished ? '撤回平面图' : '发布平面图';
+  }
+  renderSeats();
+  renderContentPanel();
+  renderStageBar();
+}
+
+function applyBgmState(b){
+  if(b.trackIndex !== state.bgm.trackIndex){
+    state.bgm.trackIndex = b.trackIndex;
+    if(b.playing){ audio.playBgmTrack(b.trackIndex, true); }
+    else { audio.playBgmTrack(b.trackIndex, false); }
+  } else {
+    if(b.playing && audio.bgm.paused) audio.play();
+    else if(!b.playing && !audio.bgm.paused) audio.pause();
+  }
+  // 位置同步（漂移>1.5s 才 seek，避免频繁跳动）
+  if(Math.abs(audio.bgm.currentTime - b.lastTime) > 1.5){
+    audio.seek(b.lastTime);
+  }
+  renderBgmList();
+}
+
+/* ==================== 界面渲染 ==================== */
+function showGameScreen(){
+  $('gameScreen').style.display = 'block';
+  setScene(STAGES[0].scene);
+  audio.init();
+  audio.setVolume(parseInt($('volumeSlider').value)/100);
+  // 时钟
+  if(clockTimer) clearInterval(clockTimer);
+  clockTimer = setInterval(()=>{
+    const s = Math.floor((Date.now()-state.startTime)/1000);
+    const mm = String(Math.floor(s/60)).padStart(2,'0');
+    const ss = String(s%60).padStart(2,'0');
+    $('sbClock').textContent = mm+':'+ss;
+  }, 1000);
+  // 填充阶段下拉
+  const sel = $('stageSelect');
+  sel.innerHTML = STAGES.map((s,i)=>`<option value="${i}">${i+1}. ${s.name}</option>`).join('');
+  renderBgmList();
+}
+
+function setScene(sceneKey){
+  const url = SCENES[sceneKey] || SCENES.main;
+  $('sceneBg').style.backgroundImage = `url('${url}')`;
+}
+
+function renderStageBar(){
+  const st = STAGES[state.stageIndex];
+  $('sbStageName').textContent = st.name;
+  $('tcStage').textContent = st.name;
+  $('tcSub').textContent = st.id === 'lobby' ? '等待玩家入座' : st.name;
+  $('stageSelect').value = state.stageIndex;
+  setScene(st.scene);
+}
+
+function renderSeats(){
+  // 找到每个座位上的玩家
+  const bySeat = {};
+  for(const pid in state.players){
+    const p = state.players[pid];
+    if(p.seat) bySeat[p.seat] = p;
+  }
+  // DM 位
+  const dmP = bySeat['dm'];
+  if(dmP){
+    $('dmName').textContent = '主持人';
+    $('seat-dm').classList.add('online');
+  }
+  // 四个玩家位
+  SEAT_ORDER.forEach((seat, idx)=>{
+    const p = bySeat[seat];
+    const pre = {tl:['tl','左上'],tr:['tr','右上'],bl:['bl','左下'],br:['br','右下']}[seat];
+    const [pf,label] = pre;
+    const seatEl = $('seat-'+seat);
+    if(p){
+      const ch = p.role ? CHARACTERS[p.role] : null;
+      $(pf+'Empty').classList.add('hidden');
+      const av = $(pf+'Avatar');
+      av.classList.remove('hidden');
+      av.src = ch ? ch.avatar : 'https://aka.doubaocdn.com/s/ziSFKa1xQ8';
+      seatEl.classList.add('online');
+      if(ch){
+        $(''+pf+'Name').textContent = ch.realName;
+        $(''+pf+'Code').textContent = ch.code;
+      } else {
+        $(''+pf+'Name').textContent = '等待分配角色';
+        $(''+pf+'Code').textContent = '未分配';
+      }
+      // 高亮自己
+      if(p.id === state.playerId){
+        $(''+pf+'Name').textContent = (ch?ch.realName:'等待分配角色') + '（你）';
+      }
+    } else {
+      $(pf+'Empty').classList.remove('hidden');
+      $(pf+'Avatar').classList.add('hidden');
+      seatEl.classList.remove('online');
+      $(''+pf+'Name').textContent = '—';
+      $(''+pf+'Code').textContent = label + '席';
+    }
+  });
+}
+
+function renderContentPanel(){
+  const st = STAGES[state.stageIndex];
+  const body = $('cpBody');
+  const title = $('cpTitle');
+  if(title) title.textContent = st.name;
+  body.classList.remove('fade-in'); void body.offsetWidth; body.classList.add('fade-in');
+  let html = '';
+  switch(st.id){
+    case 'lobby':        html = renderLobby(); break;
+    case 'intro':        html = renderIntro(); break;
+    case 'reading':      html = renderReading(); break;
+    case 'sharing':      html = renderSharing(); break;
+    case 'round1_clues': html = renderClueRound('round1'); break;
+    case 'round1_discuss': html = renderDiscuss('第一轮讨论'); break;
+    case 'round1_reveal':  html = renderReveal(ROUND1_REVEAL); break;
+    case 'round2_clues': html = renderClueRound('round2'); break;
+    case 'round2_discuss': html = renderDiscuss('第二轮讨论 · 还原人物关系'); break;
+    case 'round2_reveal':  html = renderReveal(ROUND2_REVEAL); break;
+    case 'round3_clues': html = renderClueRound('round3'); break;
+    case 'round3_discuss': html = renderDiscuss('最终讨论 · 锁定真凶'); break;
+    case 'final_vote':   html = renderVote(); break;
+    case 'final_reveal': html = renderFinalReveal(); break;
+  }
+  body.innerHTML = html;
+  body.scrollTop = 0;
+  if(state.isDM) renderDmScripts();
+}
+function showClueImage(url, caption){
+  $('cimImg').src = url;
+  $('cimCaption').textContent = caption || '';
+  $('clueImageModal').classList.remove('hidden');
+  playSfxSafe('clue');
+}
+function closeClueImage(){
+  $('clueImageModal').classList.add('hidden');
+}
+document.addEventListener('keydown',(e)=>{
+  if(e.key === 'Escape') closeClueImage();
+});
+
+let _panelCollapsed = false;
+function toggleContentPanel(){
+  _panelCollapsed = !_panelCollapsed;
+  const panel = $('contentPanel');
+  if(_panelCollapsed){ panel.classList.add('collapsed'); }
+  else { panel.classList.remove('collapsed'); }
+  playSfxSafe('click');
+}
+
+function renderLobby(){
+  const playerList = Object.values(state.players).filter(p=>!p.isDM);
+  let html = `<h2 style="color:var(--gold);letter-spacing:3px;margin-bottom:10px;">大厅 · 等待玩家入座</h2>`;
+  html += `<p style="color:var(--text-dim);font-size:14px;line-height:1.8;">房间已就绪。将6位房间号 <b style="color:var(--gold);">${esc(state.roomNumber)}</b> 分享给其余三位玩家。<br>
+  玩家加入后会自动分配座位与角色代号。全员到齐后，由 DM 点击「下一步」开始游戏。</p>`;
+  html += `<button class="btn ghost" style="margin-top:14px;" onclick="showFloorPlan()">查看店铺平面图</button>`;
+  if(playerList.length>0){
+    html += `<div style="margin-top:18px;font-size:13px;color:var(--text-dim);">已入座：</div>`;
+    playerList.forEach(p=>{
+      const ch = p.role ? CHARACTERS[p.role] : null;
+      html += `<div style="padding:6px 0;font-size:14px;color:#fff;">· ${ch?ch.realName+'（'+ch.code+'）':'等待分配角色'} ${p.online?'':'<span style="color:#888;">[离线]</span>'}</div>`;
+    });
+  }
+  return html;
+}
+
+function renderIntro(){
+  let html = `<div class="reading-role-tag">开场 · 背景故事</div>`;
+  INTRO_TEXT.forEach(p=>{ html += `<p style="text-indent:2em;line-height:2;margin-bottom:12px;">${esc(p)}</p>`; });
+  return html;
+}
+
+function renderReading(){
+  // 玩家只能看自己的剧本；DM 可看全部
+  if(state.isDM){
+    let html = `<div class="reading-role-tag">DM 视角 · 全部剧本（仅你可见）</div>`;
+    html += `<div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;">`;
+    Object.keys(CHARACTERS).forEach(k=>{
+      html += `<button class="btn ghost sm" onclick="document.getElementById('dmScript_${k}').scrollIntoView()">${CHARACTERS[k].code}</button>`;
+    });
+    html += `</div>`;
+    Object.keys(CHARACTERS).forEach(k=>{
+      const s = SCRIPTS[k];
+      html += `<div id="dmScript_${k}" style="border-top:1px solid var(--line);padding-top:14px;margin-top:14px;"><h3 style="color:var(--red);">${s.title} · ${s.realName}（${s.age}岁 ${s.height}）</h3>`;
+      s.sections.forEach(sec=>{
+        html += `<div class="script-sec"><h3>${sec.h}</h3>`;
+        sec.paras.forEach(p=>{ html += `<p>${esc(p)}</p>`; });
+        html += `</div>`;
+      });
+      html += `</div>`;
+    });
+    return html;
+  }
+  // 玩家视角
+  if(!state.myRole || !SCRIPTS[state.myRole]){
+    return `<div class="cp-empty">尚未分配角色，请等待 DM 安排…</div>`;
+  }
+  const s = SCRIPTS[state.myRole];
+  playSfxSafe('page');
+  let html = `<div class="reading-role-tag">你的角色：${s.title} · ${s.realName}（${s.age}岁 ${s.height}）</div>`;
+  s.sections.forEach(sec=>{
+    html += `<div class="script-sec"><h3>${sec.h}</h3>`;
+    sec.paras.forEach(p=>{ html += `<p>${esc(p)}</p>`; });
+    html += `</div>`;
+  });
+  html += `<p style="color:var(--text-dim);font-size:12px;text-align:center;margin-top:20px;">—— 剧本结束 · 请勿将内容告知他人 ——</p>`;
+  return html;
+}
+
+// 时间线标准答案（仅DM可见，用于参考）
+const TIMELINE_ANSWER = [
+  ['12:00','朴实青年（史贵物）到店'],
+  ['12:10','DM 苟咚溪到店，进入隔间准备'],
+  ['12:30','豪爽大叔（吴恭德）入座'],
+  ['13:30','纯情女生（薛步采）与优雅绅士（郝庄璧）一同到达'],
+  ['13:45','DM 走出隔间，要求上交手机'],
+  ['14:00','破冰游戏结束，优雅绅士第一'],
+  ['14:01-14:05','前两名依次进隔间选道具；郝庄璧砸烂杀手锏盒子'],
+  ['14:06','众人回到大房；布帘已不见'],
+  ['14:08','优雅绅士借口上厕所（3分钟回）'],
+  ['14:16','豪爽大叔（吴恭德）借口上厕所（4分钟回）'],
+  ['~14:17','封闭感官开始，灯全关'],
+  ['~14:18','纯情女生与朴实青年（史贵物）摸黑外出密谈'],
+  ['~14:20','苟咚溪旋转大房封门，前往杂物房格式化电脑，撞倒奶茶'],
+  ['~14:25','郝庄璧溜往隔间，被识破天眼身份后行凶'],
+  ['15:00','开灯，发现纯情女生换了座位；DM 无应答'],
+  ['15:00+','众人推门，发现尸体'],
+];
+
+function renderSharing(){
+  let html = `<div class="reading-role-tag">信息分享 · 自由讨论</div>`;
+  html += `<p style="text-indent:2em;line-height:2;">现在是信息分享阶段。各位玩家可以自由交流各自剧本中得知的信息，但请记住：剧本中存在"不可靠叙述"——即使是非凶手，也可能出于私人目的而隐瞒或误导。</p>`;
+  html += `<h3 style="color:var(--gold);margin:18px 0 10px;">推理白板 · 时间线（玩家协作填写）</h3>`;
+  if(state.isDM){
+    html += `<div style="margin-bottom:10px;"><button class="btn ghost sm" onclick="toggleWbAnswer()">${state.wbShowAnswer?'隐藏标准答案':'查看标准答案'}</button> <span style="font-size:12px;color:var(--text-dim);margin-left:8px;">玩家填写的内容实时同步</span></div>`;
+  }
+  html += `<table class="tl-table wb-table"><colgroup><col style="width:13%"><col style="width:87%"></colgroup>`;
+  html += `<thead><tr><th style="text-align:left;padding:6px 10px;color:var(--gold);">时间</th><th style="text-align:left;padding:6px 10px;color:var(--gold);">事件记录（玩家填写）</th></tr></thead><tbody>`;
+  TIMELINE_ANSWER.forEach((r,i)=>{
+    const wbVal = state.whiteboard[i] || '';
+    if(state.isDM && state.wbShowAnswer){
+      html += `<tr><td style="padding:6px 10px;color:var(--text-dim);white-space:nowrap;">${r[0]}</td><td style="padding:6px 10px;"><div style="color:#c8b8a8;margin-bottom:4px;">${esc(wbVal)||'<span style="color:#555;">（玩家未填写）</span>'}</div><div style="color:var(--gold);font-size:13px;border-top:1px dashed #3a2a1a;padding-top:4px;">标准答案：${esc(r[1])}</div></td></tr>`;
+    } else if(state.isDM){
+      html += `<tr><td style="padding:6px 10px;color:var(--text-dim);white-space:nowrap;">${r[0]}</td><td style="padding:4px 6px;">${esc(wbVal)||'<span style="color:#555;">（玩家未填写）</span>'}</td></tr>`;
+    } else {
+      html += `<tr><td style="padding:6px 10px;color:var(--text-dim);white-space:nowrap;vertical-align:top;">${r[0]}</td><td style="padding:3px 6px;"><textarea class="wb-input" rows="1" oninput="autoResizeWb(this);wbEdit(${i},this.value)" placeholder="记录你推理出的事件…">${esc(wbVal)}</textarea></td></tr>`;
+    }
+  });
+  html += `</tbody></table>`;
+  if(!state.isDM){
+    html += `<p style="font-size:12px;color:var(--text-dim);margin-top:8px;text-indent:0;">💡 填写的内容会实时同步给所有玩家和DM，可随时修改补充。</p>`;
+  }
+  return html;
+}
+function wbEdit(row, value){
+  if(state.isDM) return;
+  state.whiteboard[row] = value;
+  if(socket && socket.connected){
+    socket.emit('game_msg', {type:'wbEdit', row, value});
+  }
+}
+function autoResizeWb(el){
+  el.style.height = 'auto';
+  el.style.height = Math.max(28, el.scrollHeight) + 'px';
+}
+function toggleWbAnswer(){
+  state.wbShowAnswer = !state.wbShowAnswer;
+  renderContentPanel();
+  playSfxSafe('click');
+}
+
+function renderClueRound(roundKey){
+  const data = CLUES[roundKey];
+  let html = `<div class="clue-round-title">【${data.name}】 共 ${data.clues.length} 条</div>`;
+  if(roundKey === 'round1'){
+    const pub = state.publishedGuide || [];
+    if(state.isDM){
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 10px;">
+        <h4 style="color:var(--gold);margin:0;">引导问题（DM控制发布）</h4>
+        <button class="btn ghost sm" onclick="dmPublishAllGuide()" style="font-size:11px;padding:3px 10px;">全部发布</button>
+      </div>`;
+      GUIDE_QUESTIONS.forEach((q,i)=>{
+        const isPub = pub.includes(i);
+        if(isPub){
+          html += `<div class="guide-q published"><span class="gq-badge">已发布</span><b>问：</b>${esc(q)}</div>`;
+        } else {
+          html += `<div class="guide-q unpublished">
+            <span class="gq-badge locked">未发布</span><b>问：</b>${esc(q)}
+            <button class="btn sm gq-pub-btn" onclick="dmPublishGuide(${i})">发布给玩家</button>
+          </div>`;
+        }
+      });
+    } else {
+      if(pub.length > 0){
+        html += `<h4 style="color:var(--gold);margin:6px 0 10px;">引导问题 <span style="font-size:11px;color:var(--text-dim);">（${pub.length}/${GUIDE_QUESTIONS.length}）</span></h4>`;
+        pub.forEach(idx=>{
+          if(GUIDE_QUESTIONS[idx]) html += `<div class="guide-q published"><b>问：</b>${esc(GUIDE_QUESTIONS[idx])}</div>`;
+        });
+      } else {
+        html += `<div class="guide-q-placeholder">DM 尚未发布引导问题，卡壳时可向 DM 求助。</div>`;
+      }
+    }
+    html += `<h4 style="color:var(--gold);margin:16px 0 10px;">现场线索</h4>`;
+  }
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <span style="font-size:12px;color:var(--text-dim);">点击线索卡可单独收起/展开</span>
+    <button class="btn ghost sm" onclick="toggleAllClues(this)">全部收起</button>
+  </div>`;
+  html += `<div class="clue-grid">`;
+  data.clues.forEach(c=>{
+    const imgKey = roundKey + ':' + c.id;
+    const imgUrl = CLUE_IMAGES[imgKey];
+    let thumbHtml = '';
+    let badgeHtml = '';
+    if(imgUrl){
+      thumbHtml = `<img class="cc-thumb" src="${imgUrl}" alt="${esc(c.title)}" onclick="event.stopPropagation();showClueImage('${imgUrl}','${esc(c.title).replace(/'/g,"\\'")}')">`;
+      badgeHtml = `<span class="cc-img-badge">实物图</span>`;
+    }
+    html += `<div class="clue-card open" onclick="this.classList.toggle('open');playSfxSafe('clue')">
+      ${badgeHtml}
+      ${thumbHtml}
+      <div class="cc-num">线索 ${String(c.id).padStart(2,'0')}</div>
+      <div class="cc-title">${esc(c.title)}</div>
+      <div class="clue-detail">${esc(c.content)}</div>
+    </div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+function toggleAllClues(btn){
+  const cards = document.querySelectorAll('.clue-card');
+  const anyClosed = Array.from(cards).some(c => !c.classList.contains('open'));
+  cards.forEach(c => {
+    if(anyClosed) c.classList.add('open');
+    else c.classList.remove('open');
+  });
+  btn.textContent = anyClosed ? '全部收起' : '全部展开';
+  playSfxSafe('click');
+}
+
+function renderDiscuss(title){
+  return `<div class="reading-role-tag">${title}</div>
+  <p style="text-indent:2em;line-height:2;">请各位玩家围绕刚发放的线索展开讨论。DM 可在右侧控制台查看玩家发言，并在讨论结束后推进到下一阶段。</p>
+  <p style="text-indent:2em;line-height:2;color:var(--text-dim);">提示：善用右下角聊天框进行讨论，或开语音/线下交流。</p>`;
+}
+
+function renderReveal(truth){
+  let html = `<div class="truth-box"><h3>${truth.title}</h3>`;
+  truth.paras.forEach(p=>{ html += `<p>${esc(p)}</p>`; });
+  html += `</div>`;
+  return html;
+}
+
+function renderVote(){
+  const roundKey = (state.stageIndex === 5) ? 'round1' : 'final';
+  const roundName = roundKey === 'round1' ? '第一轮投凶' : '最终投凶';
+  let html = `<div class="reading-role-tag">${roundName} · 请指认你心中的凶手</div>`;
+  html += `<p style="text-indent:2em;line-height:2;">请在四名嫌疑人中选择你认为的真凶。投票结果将实时汇总给 DM，DM 公布后全员可见。</p>`;
+  const myVote = state.votes[roundKey] && state.votes[roundKey][state.playerId];
+  html += `<div class="vote-options">`;
+  Object.keys(CHARACTERS).forEach(k=>{
+    const c = CHARACTERS[k];
+    const sel = myVote === k ? 'selected' : '';
+    html += `<div class="vote-opt ${sel}" onclick="submitVote('${roundKey}','${k}')">
+      <img src="${c.avatar}" alt="">
+      <div class="vo-name">${c.realName}</div>
+      <div class="vo-code">${c.code} · ${c.age}岁</div>
+    </div>`;
+  });
+  html += `</div>`;
+  // 结果公布后显示
+  if(state.voteRevealed[roundKey] && state.votes[roundKey]){
+    const tally = {};
+    Object.values(state.votes[roundKey]).forEach(v=>{ tally[v]=(tally[v]||0)+1; });
+    const total = Object.values(tally).reduce((a,b)=>a+b,0) || 1;
+    html += `<div class="vote-result-bar"><h4 style="color:var(--gold);margin:16px 0 8px;">投票结果</h4>`;
+    Object.keys(CHARACTERS).forEach(k=>{
+      const n = tally[k]||0;
+      const pct = Math.round(n/total*100);
+      html += `<div class="vote-row"><div class="vr-name">${CHARACTERS[k].realName}</div>
+        <div class="vr-bar"><div class="vr-fill" style="width:${pct}%"></div></div>
+        <div class="vr-count">${n}票</div></div>`;
+    });
+    html += `</div>`;
+  } else if(!state.isDM){
+    html += `<p style="color:var(--text-dim);font-size:12px;margin-top:14px;">你的投票已提交，等待 DM 公布结果…</p>`;
+  }
+  return html;
+}
+
+function renderFinalReveal(){
+  playSfxSafe('suspense');
+  let html = renderReveal(FINAL_REVEAL);
+  html += `<div style="text-align:center;margin-top:24px;color:var(--gold);letter-spacing:4px;">—— 剧终 · 感谢推理 ——</div>`;
+  return html;
+}
+
+function submitVote(roundKey, candidate){
+  playSfxSafe('click');
+  if(socket && socket.connected){
+    socket.emit('game_msg', {type:'vote', round:roundKey, candidate});
+    toast('已投票给 ' + CHARACTERS[candidate].realName);
+  }
+  state.votes[roundKey] = state.votes[roundKey]||{};
+  state.votes[roundKey][state.playerId] = candidate;
+  renderContentPanel();
+}
+
+/* ==================== DM 控制 ==================== */
+function dmPublishGuide(idx){
+  if(!state.isDM) return;
+  if(state.publishedGuide.includes(idx)) return;
+  state.publishedGuide.push(idx);
+  state.publishedGuide.sort((a,b)=>a-b);
+  playSfxSafe('notify');
+  toast('已发布引导问题 ' + (idx+1));
+  renderContentPanel();
+  broadcastState();
+}
+function dmPublishAllGuide(){
+  if(!state.isDM) return;
+  let added = 0;
+  for(let i=0;i<GUIDE_QUESTIONS.length;i++){
+    if(!state.publishedGuide.includes(i)){ state.publishedGuide.push(i); added++; }
+  }
+  if(added > 0){
+    playSfxSafe('notify');
+    toast('已发布全部 ' + added + ' 条引导问题');
+    renderContentPanel();
+    broadcastState();
+  }
+}
+function dmPublishFloorPlan(){
+  if(!state.isDM) return;
+  state.floorPlanPublished = !state.floorPlanPublished;
+  playSfxSafe('notify');
+  toast(state.floorPlanPublished ? '平面图已发布给所有玩家' : '已撤回平面图');
+  broadcastState();
+}
+function toggleDmPanel(){
+  $('dmPanel').classList.toggle('collapsed');
+  $('dmToggle').textContent = $('dmPanel').classList.contains('collapsed') ? '▸' : '▾';
+}
+function dmNextStage(){
+  if(state.stageIndex >= STAGES.length-1) return;
+  state.stageIndex++;
+  onStageChanged();
+}
+function dmPrevStage(){
+  if(state.stageIndex <= 0) return;
+  state.stageIndex--;
+  onStageChanged();
+}
+function dmJumpStage(i){
+  state.stageIndex = parseInt(i);
+  onStageChanged();
+}
+function onStageChanged(){
+  playSfxSafe('click');
+  renderStageBar();
+  renderContentPanel();
+  broadcastState();
+  // 线索阶段播放线索音效
+  if(STAGES[state.stageIndex].id.includes('clues')) playSfxSafe('clue');
+  if(STAGES[state.stageIndex].id === 'final_reveal') playSfxSafe('suspense');
+}
+
+
+function getStageScripts(){
+  const st = STAGES[state.stageIndex];
+  if(!st) return [];
+  const sid = st.id;
+  const map = {
+    lobby: [0,1],
+    intro: [0,1],
+    reading: [2],
+    sharing: [3],
+    round1_clues: [4,5],
+    round1_discuss: [6],
+    round1_reveal: [7],
+    round2_clues: [8],
+    round2_discuss: [9],
+    round2_reveal: [10],
+    round3_clues: [11],
+    round3_discuss: [12],
+    final_vote: [13],
+    final_reveal: [13]
+  };
+  return map[sid] || [];
+}
+function renderDmScripts(){
+  if(!state.isDM) return;
+  const panel = $('dmScriptsPanel');
+  if(!panel) return;
+  panel.classList.remove('hidden');
+  const st = STAGES[state.stageIndex];
+  const stageName = st ? st.name : '';
+  $('dspTitle').textContent = 'DM话术 · ' + stageName;
+  // Current stage scripts
+  const currentIdx = getStageScripts();
+  let curHtml = '';
+  currentIdx.forEach(i => {
+    curHtml += renderDsItem(i);
+  });
+  if(curHtml === '') curHtml = '<div style="font-size:12px;color:#888;padding:8px;text-align:center;">当前阶段暂无专用话术</div>';
+  $('dspCurrent').innerHTML = curHtml;
+  // All scripts (grouped by category)
+  let allHtml = '';
+  const cats = {};
+  DM_SCRIPTS.forEach((s, i) => {
+    if(!cats[s.cat]) cats[s.cat] = [];
+    cats[s.cat].push(i);
+  });
+  for(const cat in cats){
+    allHtml += '<div class="dsp-all-group">';
+    allHtml += '<div class="dsp-all-group-title">' + cat + '</div>';
+    cats[cat].forEach(i => { allHtml += renderDsItem(i); });
+    allHtml += '</div>';
+  }
+  $('dspAll').innerHTML = allHtml;
+}
+function renderDsItem(i){
+  const s = DM_SCRIPTS[i];
+  let h = '<div class="ds-item" id="dsItem-'+i+'">';
+  h += '<div class="ds-header" onclick="toggleDsItem('+i+')">';
+  h += '<span class="ds-cat">'+s.cat+'</span>';
+  h += '<span class="ds-title">'+s.title+'</span>';
+  h += '<span class="ds-toggle">▼</span></div>';
+  h += '<div class="ds-body">'+esc(s.text);
+  h += '<div class="ds-actions">';
+  h += '<button class="btn ghost sm" onclick="copyDsScript('+i+')">复制</button>';
+  h += '<button class="btn sm" onclick="sendDsScript('+i+')">发送到聊天</button>';
+  h += '</div></div></div>';
+  return h;
+}
+function toggleDspPanel(){
+  $('dmScriptsPanel').classList.toggle('collapsed');
+}
+function toggleDspAll(){
+  const all = $('dspAll');
+  const btn = $('dspExpandBtn');
+  if(all.style.display === 'none'){
+    all.style.display = 'block';
+    btn.textContent = '收起全部话术';
+  } else {
+    all.style.display = 'none';
+    btn.textContent = '展开全部话术';
+  }
+}
+
+function toggleDsItem(i){
+  const el = $('dsItem-'+i);
+  if(el) el.classList.toggle('open');
+}
+function copyDsScript(i){
+  const text = DM_SCRIPTS[i].text;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(()=>{ toast('已复制到剪贴板'); }).catch(()=>{ fallbackCopy(text); });
+  } else { fallbackCopy(text); }
+}
+function fallbackCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); toast('已复制到剪贴板'); }catch(e){ toast('复制失败'); }
+  document.body.removeChild(ta);
+}
+function sendDsScript(i){
+  if(!state.isDM) return;
+  const s = DM_SCRIPTS[i];
+  const fullText = '【'+s.cat+'】'+s.title+'\n\n'+s.text;
+  appendChat('DM', fullText, false);
+  broadcastToAll({type:'chat', from:'DM', text:fullText});
+  playSfxSafe('notify');
+  toast('话术已发送到聊天');
+}
+
+function renderDmPlayerList(){
+  if(!state.isDM) return;
+  const wrap = $('dmPlayerList');
+  let html = '';
+  for(const pid in state.players){
+    const p = state.players[pid];
+    const ch = p.role ? CHARACTERS[p.role] : null;
+    if(p.isDM){
+      html += `<div class="player-item">
+        <img src="${DM_CHAR.avatar}" alt="">
+        <div class="pi-info">
+          <div class="pi-name">主持人 <span style="color:var(--gold);">(你)</span></div>
+          <div class="pi-role">DM · 在线</div>
+        </div>
+      </div>`;
+    } else {
+      const usedRoles = new Set(Object.values(state.players).filter(pp=>pp.role && pp.id!==pid).map(pp=>pp.role));
+      let opts = '<option value="">未分配</option>';
+      for(const rk in CHARACTERS){
+        const c = CHARACTERS[rk];
+        const disabled = usedRoles.has(rk) && p.role !== rk ? 'disabled' : '';
+        const sel = p.role === rk ? 'selected' : '';
+        opts += `<option value="${rk}" ${sel} ${disabled}>${c.code} · ${c.realName}</option>`;
+      }
+      html += `<div class="player-item">
+        <img src="${ch?ch.avatar:DM_CHAR.avatar}" alt="">
+        <div class="pi-info">
+          <div class="pi-name">玩家 ${p.online?'<span style="color:#4a4">在线</span>':'<span style="color:#888">离线</span>'}</div>
+          <div class="pi-role">${ch?ch.code+' · '+ch.realName:'等待分配角色'}</div>
+          <select class="dm-role-select" onchange="dmAssignRole('${pid}', this.value)" style="margin-top:4px;width:100%;background:#1a1414;color:#d8ccc0;border:1px solid #444;border-radius:4px;padding:3px 6px;font-size:11px;">${opts}</select>
+        </div>
+        <button class="btn ghost sm" onclick="kickPlayer('${pid}')">踢</button>
+      </div>`;
+    }
+  }
+  wrap.innerHTML = html;
+}
+function dmAssignRole(pid, roleKey){
+  if(!state.isDM) return;
+  const p = state.players[pid];
+  if(!p) return;
+  // 如果角色已被其他人占用，先清除
+  for(const otherPid in state.players){
+    if(state.players[otherPid].role === roleKey && otherPid !== pid){
+      state.players[otherPid].role = null;
+    }
+  }
+  p.role = roleKey || null;
+  playSfxSafe('notify');
+  if(roleKey){
+    toast('已分配角色：' + CHARACTERS[roleKey].realName);
+  } else {
+    toast('已取消角色分配');
+  }
+  renderSeats();
+  renderDmPlayerList();
+  broadcastState();
+}
+function kickPlayer(pid){
+  if(socket){ try{ socket.emit('kick_player', { playerId: pid }); }catch(e){} }
+  delete state.players[pid];
+  renderSeats(); renderDmPlayerList(); broadcastState();
+}
+
+function renderDmVoteView(){
+  if(!state.isDM) return;
+  const wrap = $('dmVoteView');
+  let html = '';
+  ['round1','final'].forEach(rk=>{
+    const v = state.votes[rk]||{};
+    const n = Object.keys(v).length;
+    html += `<div style="margin-bottom:8px;">`;
+    html += `<div style="font-size:12px;color:var(--text-dim);">${rk==='round1'?'第一轮':'最终'}（${n}票）</div>`;
+    for(const pid in v){
+      const p = state.players[pid];
+      const cand = v[pid];
+      html += `<div style="font-size:12px;">· ${p?esc(p.nickname):'?'} → ${CHARACTERS[cand]?CHARACTERS[cand].realName:cand}</div>`;
+    }
+    html += `<div class="dm-row" style="margin-top:4px;">
+      <button class="btn ghost sm" onclick="revealVote('${rk}')">${state.voteRevealed[rk]?'已公布':'公布结果'}</button>
+    </div></div>`;
+  });
+  wrap.innerHTML = html || '<span style="color:#666;font-size:12px;">暂无投票</span>';
+}
+function revealVote(rk){
+  state.voteRevealed[rk] = true;
+  renderDmVoteView();
+  renderContentPanel();
+  broadcastState();
+}
+
+/* ==================== BGM 控制 ==================== */
+function renderBgmList(){
+  const wrap = $('bgmList');
+  if(!wrap) return;
+  wrap.innerHTML = BGM_TRACKS.map((t,i)=>
+    `<div class="${i===state.bgm.trackIndex?'cur':''}" onclick="if(state.isDM){dmSelectTrack(${i})}">${i+1}. ${t.name}</div>`
+  ).join('');
+}
+function dmSelectTrack(i){
+  state.bgm.trackIndex = i;
+  audio.playBgmTrack(i, true);
+  renderBgmList();
+  broadcastBgm();
+  playSfxSafe('click');
+}
+function bgmNext(){ if(state.isDM){ dmSelectTrack((state.bgm.trackIndex+1)%BGM_TRACKS.length); } }
+function bgmPrev(){ if(state.isDM){ dmSelectTrack((state.bgm.trackIndex-1+BGM_TRACKS.length)%BGM_TRACKS.length); } }
+function dmToggleBgmPlay(){
+  if(!state.isDM) return;
+  if(audio.bgm.paused){ audio.play(); $('dmBgmPlayBtn').textContent='暂停'; }
+  else { audio.pause(); $('dmBgmPlayBtn').textContent='播放'; }
+  broadcastBgm();
+}
+function broadcastBgm(){
+  broadcastToAll({ type:'bgm', bgm:{ trackIndex:state.bgm.trackIndex, playing:!audio.bgm.paused, volume:audio.volume, lastTime:audio.bgm.currentTime }});
+}
+// host 定期同步播放位置（2秒一次）
+setInterval(()=>{
+  if(state.isDM && audio.bgm && !audio.bgm.paused){
+    broadcastBgm();
+  }
+}, 2000);
+
+function onVolume(v){
+  audio.setVolume(parseInt(v)/100);
+  $('volLabel').textContent = v;
+  state.bgm.volume = parseInt(v)/100;
+  if(state.isDM) broadcastBgm();
+}
+
+/* ==================== 聊天 ==================== */
+function toggleChat(){
+  $('chatBox').classList.toggle('collapsed');
+  $('chatToggle').textContent = $('chatBox').classList.contains('collapsed') ? '▸' : '▴';
+}
+function appendChat(name, text, isSelf){
+  const box = $('chatMsgs');
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.innerHTML = `<span class="cm-name">${esc(name)}：</span><span class="cm-text">${esc(text)}</span>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+function sendChat(){
+  const input = $('chatInput');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = '';
+  let myName;
+  if(state.isDM){ myName = '主持人'; }
+  else { const me = state.players[state.playerId]; myName = (me && me.role) ? CHARACTERS[me.role].realName : '玩家'; }
+  appendChat(myName, text, true);
+  if(state.isDM){
+    broadcastToAll({type:'chat', from:myName, text});
+  } else if(socket && socket.connected){
+    socket.emit('game_msg', {type:'chat', text});
+  }
+}
+
+/* ==================== 平面图 ==================== */
+function showFloorPlan(){ $('floorplanImg').src = SCENES.floorplan; $('floorplanModal').style.display='flex'; playSfxSafe('click'); }
+function closeFloorPlan(){ $('floorplanModal').style.display='none'; }
+
+function showMyScript(){
+  playSfxSafe('click');
+  if(state.isDM){ return; }
+  if(!state.myRole){
+    toast('DM尚未分配角色');
+    return;
+  }
+  const char = CHARACTERS[state.myRole];
+  const script = SCRIPTS[state.myRole];
+  $('scriptModalTitle').textContent = char.code + ' · ' + char.realName + ' 的剧本';
+  $('scriptModalSubtitle').textContent = char.age + '岁 · ' + char.height;
+  let html = '';
+  for(const sec of script.sections){
+    html += '<div class="script-section-h">' + sec.h + '</div>';
+    for(const p of sec.paras){
+      html += '<div class="script-para">' + p + '</div>';
+    }
+  }
+  $('scriptModalBody').innerHTML = html;
+  $('scriptModalBody').scrollTop = 0;
+  $('scriptModal').style.display = 'flex';
+}
+function closeMyScript(e){
+  if(e && e.target && e.target.closest('.script-box') && e.type === 'click'){ return; }
+  $('scriptModal').style.display = 'none';
+}
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    const sm = $('scriptModal');
+    if(sm && sm.style.display === 'flex'){ closeMyScript(); }
+  }
+});
+
+/* ==================== 启动 ==================== */
+renderSeats();
+
+// 页面加载时检查DM session
+setTimeout(checkDmSessionOnLoad, 300);
+</script>
+</body>
+</html>
